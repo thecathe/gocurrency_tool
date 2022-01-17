@@ -9,11 +9,36 @@ To install and run Gocurrency, follow these instructions:
 
 * Make sure you have [Golang](https://golang.org/doc/install) installed.
 * Run ``` git clone https://github.com/nicolasdilley/gocurrency_tool ```
-* Run ``` cd gocurrency_tool/analyser```
-* Run ```go get ```
-* Run ```go build```
-* Put the projects you want to analyse in ```./projects.txt``` (comes prepopulated with 865 projects)
-* Run ``` .analyser ./analyser/projects.txt```
+
+
+See below for specific help with **vscode**, or the follow the [Original](https://github.com/nicolasdilley/gocurrency_tool#readme):
+### (*Optional*) Step 1: Generating a new ``` .\projects.txt``` file
+* Open the ``` gocurrency_tool``` directory in vscode.
+* Open the terminal.
+* Run ``` python .\moststarred.py``` to generate a new ``` .\projects.txt``` file.
+* Enter GitHub login
+* Enter GitHub password
+* Wait for confirmation message.
+* Find ``` .\projects.txt``` populated with new repositories.
+* Move ``` .\projects.txt``` into the ``` .\analyser``` folder.
+Make sure to close vscode now, before continuing to the next step.
+
+### Step 2: Create VSCode workspace
+* Navigate to the ``` $GOPATH ``` folder on your system, on windows it is likely: ``` %userprofile%\go```
+* Open this in vscode.
+* ``` File -> Save Workspace As... ``` This as a new workspace, store that file somewhere unrelated to this.
+* ``` File -> Add Folder to Workspace... ``` Add the ``` gocurrency_tool\analyser\``` folder.
+
+### Step 3: Setup analyser
+* Open a terminal. If asked, run it ``` gocurrency_tool\analyser\``` and not ``` %userprofile%\go```.
+* Run ``` cd ..```
+* Run ``` go mod init .analyser```
+* Run ``` go mod tidy```
+* Run ``` cd .\analyser\```
+* Run ``` go get```
+* Run ``` go build```
+* Put the projects you want to analyse in ``` .\projects.txt``` (comes prepopulated with 865 projects, or see below for generating your own)
+* Run ``` .\analyser.exe .\projects.txt``` 
 
 Gocurrency will create and populate ``` ./analyser/results ``` with the HTML and CSV results.
 Gocurrency will overwrite any existing results that were previously in that folder.
