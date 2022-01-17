@@ -26,7 +26,7 @@ i = 0
 p = 0
 cont = True
 
-minimum_star_count = 2000
+minimum_star_count = 3000
 
 username = input("GitHub username: ")
 pswd = getpass.getpass()
