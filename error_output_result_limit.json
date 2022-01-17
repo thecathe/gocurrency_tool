@@ -1,0 +1,26 @@
+{"header":{
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Expose-Headers": "ETag, Link, Location, Retry-After, X-GitHub-OTP, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Used, X-RateLimit-Resource, X-RateLimit-Reset, X-OAuth-Scopes, X-Accepted-OAuth-Scopes, X-Poll-Interval, X-GitHub-Media-Type, X-GitHub-SSO, X-GitHub-Request-Id, Deprecation, Sunset",
+    "Cache-Control": "no-cache",
+    "Content-Length": "119",
+    "Content-Security-Policy": "default-src 'none'",
+    "Content-Type": "application/json; charset=utf-8",
+    "Date": "Mon, 17 Jan 2022 14:01:24 GMT",
+    "Referrer-Policy": "origin-when-cross-origin, strict-origin-when-cross-origin",
+    "Server": "GitHub.com",
+    "Strict-Transport-Security": "max-age=31536000; includeSubdomains; preload",
+    "Vary": "Accept, Accept-Encoding, Accept, X-Requested-With",
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "deny",
+    "X-GitHub-Media-Type": "github.mercy-preview; format=json",
+    "X-GitHub-Request-Id": "D6BC:AF96:15F523:1689A0:61E576B4",
+    "X-RateLimit-Limit": "10",
+    "X-RateLimit-Remaining": "9",
+    "X-RateLimit-Reset": "1642428144",
+    "X-RateLimit-Resource": "search",
+    "X-RateLimit-Used": "1",
+    "X-XSS-Protection": "0"
+},"data":{
+    "documentation_url": "https://docs.github.com/v3/search/",
+    "message": "Only the first 1000 search results are available"
+}}
