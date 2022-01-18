@@ -23,22 +23,22 @@ See below for specific help with **vscode**, or the follow the [Original](https:
 * Move ``` .\projects.txt``` into the ``` .\analyser``` folder.
 Make sure to close vscode now, before continuing to the next step.
 
-### Step 2: Create VSCode workspace
+<!-- ### Step 2: Create VSCode workspace
 * Navigate to the ``` $GOPATH ``` folder on your system, on windows it is likely: ``` %userprofile%\go```
 * Open this in vscode.
 * ``` File -> Save Workspace As... ``` This as a new workspace, store that file somewhere unrelated to this.
-* ``` File -> Add Folder to Workspace... ``` Add the ``` gocurrency_tool\analyser\``` folder.
+* ``` File -> Add Folder to Workspace... ``` Add the ``` gocurrency_tool\analyser\``` folder. -->
 
-### Step 3: Setup analyser
+### Step 2: Setup analyser
+* Open the ``` gocurrency_tool/analyser ``` directory in vscode.
 * Open a terminal. If asked, run it ``` gocurrency_tool\analyser\``` and not ``` %userprofile%\go```.
-* Run ``` cd ..```
-* Run ``` go mod init .analyser```
+<!-- * Run ``` cd ..``` -->
+* Run ``` go mod init github.com/username/repo``` with the GitHub url pointing to either your version or the original project.
 * Run ``` go mod tidy```
-* Run ``` cd .\analyser\```
 * Run ``` go get```
 * Run ``` go build```
 * Put the projects you want to analyse in ``` .\projects.txt``` (comes prepopulated with 865 projects, or see below for generating your own)
-* Run ``` .\analyser.exe .\projects.txt``` 
+* Run ``` .\gocurrency_tool.exe .\projects.txt``` 
 
 Gocurrency will create and populate ``` ./analyser/results ``` with the HTML and CSV results.
 Gocurrency will overwrite any existing results that were previously in that folder.
