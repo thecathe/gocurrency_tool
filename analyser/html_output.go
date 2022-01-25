@@ -2,16 +2,15 @@ package main
 
 import (
 	"bytes"
-	"fmt"
 	"html/template"
 	"os"
 	"os/exec"
-	"strconv"
+	"path/filepath"
 	"strings"
 )
 
 const (
-	html_results_dir = "results/html"
+	html_result_dir = "results\\html"
 )
 
 type PageData struct {
@@ -57,11 +56,24 @@ func GenerateProjectCounter(project_counter Counter) Counter {
 }
 
 func HtmlOutputCounters(package_counters []*PackageCounter, commit string, project_name string, index_data *IndexFileData, path_to_dir string) Counter {
-	var filename string = "./" + html_results_dir + "/" + strings.Replace(project_name, "/", "-", -1) + ".html"
+
+	GeneralLog("%s: Entering HTML output stage.\n", project_name)
+
+	var html_path = GenerateHTMLPath()
+
+	if _, err := os.Stat(html_path); os.IsNotExist(err) && err != nil {
+		PanicLog(err, "Html, OutputCounters: HTML output dir \"%s\" does not exist. Entering panic\n", html_path)
+	}
+
+	var file_name = ProjectName(project_name) + ".html"
+	var file_path string = filepath.Join(html_path, file_name)
+
+	// filename += ".html"
 	var project_counter Counter = Counter{Project_name: project_name}
-	f, err := os.Create(filename)
+
+	f, err := os.Create(file_path)
 	if err != nil {
-		panic(err)
+		PanicLog(err, "Html, OutputCounters: Unable to create file \"%s\", entering panic...\n", file_path)
 	}
 
 	//project_counter.Line_number = ReadNumberOfLines(GenerateListFiles(path_to_dir))
@@ -122,12 +134,13 @@ func HtmlOutputCounters(package_counters []*PackageCounter, commit string, proje
 		project_counter.Receive_chan_count += counter.Counter.Receive_chan_count
 		project_counter.Param_chan_count += counter.Counter.Param_chan_count
 	}
+	DebugLog("Html, OutputCounters: Finished %d package counters\n", len(package_counters))
 	project_counter.Num_of_packages_with_features = page.Num_of_packages_with_features
 
 	if index_data != nil {
 
 		var index *IndexData = &IndexData{}
-		index.Filename = filename
+		index.Filename = file_name
 		index.Project_name = project_name
 		index.Num_of_features = page.Num_of_features
 		index.Num_of_packages_with_features = page.Num_of_packages_with_features
@@ -138,29 +151,17 @@ func HtmlOutputCounters(package_counters []*PackageCounter, commit string, proje
 	}
 
 	page.Project_counter = GenerateProjectCounter(project_counter)
-	tmpl := template.Must(template.ParseFiles("../analyser/html_layout.html"))
-	tmpl.Execute(f, page) // write the data to the file
-
-	return project_counter
-}
-
-func GeneratePackageListFiles(path_to_dir string) string {
-	git_cmd := exec.Command("ls")
-	git_cmd.Dir = path_to_dir
-	var git_out bytes.Buffer
-	git_cmd.Stdout = &git_out
-	err := git_cmd.Run()
+	if _, err = os.Stat("html_layout.html"); err != nil && os.IsNotExist(err) {
+		FailureLog("Html, OutputCounters: Unable to locate \"html_layout.html\"...\n\terror: %v\n", err)
+	}
+	tmpl := template.Must(template.ParseFiles("html_layout.html"))
+	err = tmpl.Execute(f, page) // write the data to the file
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error while running git ls-files : ", err)
-	}
-	filenames := ""
-	for _, name := range strings.Split(git_out.String(), "\n") {
-		if strings.HasSuffix(name, ".go") {
-			filenames += path_to_dir + "/" + name + "\n"
-		}
+		FailureLog("Html, OutputCounters: Error occured when writing html results...\n\terror: %v\n", err)
 	}
 
-	return filenames
+	GeneralLog("%s: Finished HTML output stage.\n\n", project_name)
+	return project_counter
 }
 
 func GenerateListFiles(path_to_dir string) string {
@@ -171,7 +172,7 @@ func GenerateListFiles(path_to_dir string) string {
 	err := git_cmd.Run()
 
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error while running git ls-files : ", err)
+		WarningLog("Html, GLF: Error while running git ls-files: %v\n", err)
 	}
 	filenames := ""
 	for _, name := range strings.Split(git_out.String(), "\n") {
@@ -184,49 +185,12 @@ func GenerateListFiles(path_to_dir string) string {
 			!strings.HasPrefix(name, "./tests") &&
 			!strings.HasPrefix(name, "test") &&
 			!strings.HasPrefix(name, "tests") {
-			filenames += path_to_dir + "/" + name + "\n"
+			filenames += filepath.Join(path_to_dir, name) + "\n"
 		}
 	}
 	return filenames
 }
-func ReadNumberOfLines(list_filenames string) int {
-	var xargs_out bytes.Buffer
-	var git_out bytes.Buffer
-	filenames := strings.Split(list_filenames, "\n")
-	git_out.Reset()
-	for _, filename := range strings.Split(list_filenames, "\n") {
-		if filename != "" {
-			git_out.WriteString("\"" + filename + "\"\n")
-		}
-	}
-	xargs_cmd := exec.Command("xargs", "cat")
-	xargs_cmd.Stdin = &git_out
-	xargs_cmd.Stdout = &xargs_out
-	xargs_cmd.Run()
 
-	f, _ := os.Create("temp.go")
-	f.Write(xargs_out.Bytes())
-	var wc_out bytes.Buffer
-	wc_cmd := exec.Command("cloc", "temp.go", "--csv")
-	// wc_cmd.Stdin = &xargs_out
-	wc_cmd.Stdout = &wc_out
-	err3 := wc_cmd.Run()
-	if err3 != nil {
-		fmt.Fprintf(os.Stderr, "Error while running wc : ", err3)
-	}
-	os.Remove("temp.go")
-	word_count := strings.Split(strings.TrimSpace(wc_out.String()), "\n")
-	cloc_infos := strings.Split(strings.TrimSpace(word_count[len(word_count)-1]), ",")
-
-	if len(cloc_infos) >= 5 {
-		num, _ := strconv.Atoi(cloc_infos[4])
-
-		if len(filenames) == 0 {
-			return 0
-		}
-
-		return num
-	} else {
-		return 0.0
-	}
+func GenerateHTMLPath() string {
+	return filepath.Join(GenerateWDPath(), html_result_dir)
 }

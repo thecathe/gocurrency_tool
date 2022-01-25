@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -32,7 +31,7 @@ func ParseDir(proj_name string, path_to_dir string, path_to_main_dir string) Pac
 		ast.Print(fileSet, f)
 	}
 	if err != nil {
-		fmt.Printf("An error was found in package %s : %v", filepath.Base(path_to_dir), err)
+		WarningLog("ParseDir: An error was found in package %s...\n\terror: %v\n", filepath.Base(path_to_dir), err)
 	}
 
 	if len(f) == 0 {
@@ -96,8 +95,9 @@ func ParseDir(proj_name string, path_to_dir string, path_to_main_dir string) Pac
 
 func ParseConcurrencyPrimitives(path_to_dir string, counter Counter) Counter {
 	package_names := []string{}
+	DebugLog("Parser, PCP: %s\n", path_to_dir)
 
-	filepath.Walk(path_to_dir, func(path string, file os.FileInfo, err error) error {
+	walk_err := filepath.Walk(path_to_dir, func(path string, file os.FileInfo, err error) error {
 		if file.IsDir() {
 			if file.Name() != "vendor" && file.Name() != "third_party" {
 				path, _ = filepath.Abs(path)
@@ -108,39 +108,57 @@ func ParseConcurrencyPrimitives(path_to_dir string, counter Counter) Counter {
 		}
 		return nil
 	})
+	GeneralLog("Parser, PCP: Found %d packages.\n", len(package_names))
 
-	var ast_map map[string]*packages.Package = make(map[string]*packages.Package)
-	var cfg *packages.Config = &packages.Config{Mode: packages.LoadAllSyntax, Fset: &token.FileSet{}, Dir: path_to_dir, Tests: true}
-
-	package_names = append([]string{"."}, package_names...)
-	lpkgs, err := packages.Load(cfg, package_names...)
-
-	if err != nil {
-		fmt.Println("couldn't load ", path_to_dir)
+	if walk_err != nil {
+		FailureLog("Parser, PCP: Error occured during file walk...\n\terror: %v\n", walk_err)
 	}
 
-	for _, pack := range lpkgs {
+	var ast_map map[string]*packages.Package = make(map[string]*packages.Package)
+
+	var cfg *packages.Config = &packages.Config{Mode: 991, Fset: &token.FileSet{}, Dir: path_to_dir, Tests: true}
+	// var cfg *packages.Config = &packages.Config{Mode: packages., Fset: &token.FileSet{}, Dir: path_to_dir, Tests: true}
+
+	package_names = append([]string{"."}, package_names...)
+	loaded_packages, err := packages.Load(cfg, package_names...)
+
+	if err != nil {
+		FailureLog("Parser, PCP: Could not load: %s\n\terror: %v\n", path_to_dir, err)
+	}
+
+	for _, pack := range loaded_packages {
 		ast_map[pack.Name] = pack
 	}
 
+	DebugLog("Parser, PCP: Analysing each package.")
 	for pack_name, node := range ast_map {
-		// Analyse each file
+		// Analyse each package
 
-		// make sure the package doesnt contain any global concurrency primitives
+		VerboseLog("Parser, PCP: %s, %d files.\n", pack_name, len(node.Syntax))
+
+		var n_s_file_decl_count int = 0
+		var n_s_file_func_decl_count int = 0
 
 		for _, file := range node.Syntax {
+			// each file in the package
 			for _, decl := range file.Decls {
+				// each declaration in the file
 				switch decl := decl.(type) {
 				case *ast.FuncDecl:
 					// Analyse each function decleration
 					if decl.Body != nil {
 						counter = AnalyseConcurrencyPrimitives(pack_name, decl, counter, cfg.Fset, ast_map)
+						n_s_file_func_decl_count++
 					}
 				}
+				n_s_file_decl_count++
 			}
 		}
+		VerboseLog("Parser, PCP: Finished %s, %d files.\n\tTotal Decl: %d\n\tFunction Decl: %d\n", pack_name, len(node.Syntax), n_s_file_decl_count, n_s_file_func_decl_count)
 
+		// fmt.Print("\n\n\n\n")
 	}
 
+	DebugLog("Parser, PCP: Finished %s, %d packages\n\n\n", path_to_dir, len(ast_map))
 	return counter
 }

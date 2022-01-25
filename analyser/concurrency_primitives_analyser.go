@@ -14,25 +14,45 @@ const MAX_STRUCT_DEPTH int = 6 // The maximum depthness at which we analyse stru
 
 // Parses a function declaration "decl" and update counter to reflects what "decl" uses in terms of concurrency primitives
 func AnalyseConcurrencyPrimitives(pack_name string, decl *ast.FuncDecl, counter Counter, fileset *token.FileSet, ast_map map[string]*packages.Package) Counter {
+	VerboseLog("CPA, ACP: New Call... %s\n", pack_name)
+
 	ast.Inspect(decl.Body, func(stmt ast.Node) bool {
-		switch stmt := stmt.(type) {
+		switch _stmt := stmt.(type) {
 		case *ast.AssignStmt:
-			if stmt.Tok == token.DEFINE {
-				for _, e := range stmt.Lhs {
-					counter = analyseLhs(pack_name, e, counter, fileset, ast_map)
+			VerboseLog("CPA, ACP: AssignStmt\n")
+			if _stmt.Tok == token.DEFINE {
+				for _, e := range _stmt.Lhs {
+					_success, _c := analyseLhs(pack_name, e, counter, fileset, ast_map)
+					if _success {
+						counter = _c
+					} else {
+						VerboseLog("CPA, APC: ALhs failed on AssignStmt...\n\tPack Name: %s\n\tExpr: %+v\n", pack_name, e)
+					}
 				}
 			}
 		case *ast.GenDecl:
-			for _, spec := range stmt.Specs {
+			VerboseLog("CPA, ACP: GenDecl\n")
+			for _, spec := range _stmt.Specs {
 				switch spec := spec.(type) {
 				case *ast.ValueSpec:
 					for _, name := range spec.Names {
-						counter = analyseLhs(pack_name, name, counter, fileset, ast_map)
+						_success, _c := analyseLhs(pack_name, name, counter, fileset, ast_map)
+						if _success {
+							counter = _c
+						} else {
+							VerboseLog("CPA, APC: ALhs failed on GenDecl...\n\tPack Name: %s\n\tExpr: %+v\n", pack_name, name)
+						}
 					}
 				}
 			}
 		case *ast.CallExpr:
-			counter = analyseCallExpr(pack_name, stmt, counter, fileset, ast_map)
+			VerboseLog("CPA, ACP: CallExpr\n")
+			_success, _c := analyseCallExpr(pack_name, _stmt, counter, fileset, ast_map)
+			if _success {
+				counter = _c
+			} else {
+				VerboseLog("CPA, APC: ACE failed on CallExpr...\n\tPack Name: %s\n\tStatement: %+v\n", pack_name, _stmt)
+			}
 		}
 		return true
 	})
@@ -40,10 +60,14 @@ func AnalyseConcurrencyPrimitives(pack_name string, decl *ast.FuncDecl, counter 
 	return counter
 }
 
-func analyseLhs(pack_name string, expr ast.Expr, counter Counter, fileset *token.FileSet, ast_map map[string]*packages.Package) Counter {
+func analyseLhs(pack_name string, expr ast.Expr, counter Counter, fileset *token.FileSet, ast_map map[string]*packages.Package) (bool, Counter) {
+
+	VerboseLog("CPA, ALhs: %s... expr: %v\n", pack_name, expr)
+
 	switch typ := removePointer(ast_map[pack_name].TypesInfo.TypeOf(expr)).(type) {
 	case nil:
-		fmt.Println("couldn't find type of ", expr)
+		FailureLog("CPA, ALhs: Type was nil...\n\tPack name: %s\n\tType: %+v\n\tError: %+v\n", pack_name, typ, expr)
+		return false, counter
 	case *types.Named:
 		feature := Feature{
 			F_filename:     fileset.Position(expr.Pos()).Filename,
@@ -63,13 +87,16 @@ func analyseLhs(pack_name string, expr ast.Expr, counter Counter, fileset *token
 		}
 	}
 
-	return counter
+	return true, counter
 }
 func analyseUnderlying(pack_name string, expr ast.Expr, typ types.Type, depth int, counter Counter, fileset *token.FileSet, ast_map map[string]*packages.Package) Counter {
+
+	VerboseLog("CPA, AU: %s... expr: %v\n", pack_name, expr)
+
 	if depth > 0 {
 		switch typ := removePointer(typ).(type) {
 		case nil:
-			fmt.Println("couldn't find type of ", typ)
+			FailureLog("CPA, AU: %s, Couldn't find type of %s", pack_name, expr)
 		case *types.Named:
 			feature := Feature{
 				F_filename:     fileset.Position(expr.Pos()).Filename,
@@ -100,7 +127,10 @@ func analyseUnderlying(pack_name string, expr ast.Expr, typ types.Type, depth in
 	return counter
 }
 
-func analyseCallExpr(pack_name string, call_expr *ast.CallExpr, counter Counter, fileset *token.FileSet, ast_map map[string]*packages.Package) Counter {
+func analyseCallExpr(pack_name string, call_expr *ast.CallExpr, counter Counter, fileset *token.FileSet, ast_map map[string]*packages.Package) (bool, Counter) {
+
+	VerboseLog("CPA, ACE: %s... call expr: %v\n", pack_name, call_expr)
+
 	switch expr := call_expr.Fun.(type) {
 	case *ast.SelectorExpr:
 		if expr.Sel.Name == "Unlock" || expr.Sel.Name == "Lock" {
@@ -167,9 +197,12 @@ func analyseCallExpr(pack_name string, call_expr *ast.CallExpr, counter Counter,
 				}
 			}
 		}
+	default:
+		// nothing happened here
+		return false, counter
 	}
 
-	return counter
+	return true, counter
 }
 
 func isConst(expr ast.Expr, pack *packages.Package) (found bool, val int) {

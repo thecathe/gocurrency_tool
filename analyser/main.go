@@ -1,11 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"html/template"
-	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -63,13 +65,140 @@ type PackageCounter struct {
 	Num_files         int
 }
 
+const (
+	clone_dir  = "cloned_projects"
+	dir_mode   = os.ModeDir // os.ModePerm
+	result_dir = "results"
+)
+
+var general_log_enabled bool = true
+var debug_log_enabled bool = true
+var warning_log_enabled bool = true
+var failure_log_enabled bool = true
+
+var keep_repos bool = false
+var overwrite_results bool = false
+var separate_results bool = false
+
 func main() {
+	// goconcurrency.exe (projects_file_path, keep_repos, overwrite_results, separate_results, debug_log_enabled, warning_log_enabled, failure_log_enabled)
 
-	os.Mkdir("results", 0755)
-	os.Mkdir(csv_result_dir, 0755)
-	os.Mkdir(html_results_dir, 0755)
+	// run with git bash in /analyser:
+	// go build && ./gocurrency_tool.exe
 
-	if os.Args[1] == "test" {
+	// run, keeping clones, deleting old results and splitting results
+	// go build && ./gocurrency_tool.exe projects.txt true true true
+
+	// assertion
+	if html_result_dir != filepath.Join(result_dir, "html") {
+		WarningLog("Potential issue: HTML results output dir is not set to expected value...\n\texpected: results\\html\n\tactual: %s\n", html_result_dir)
+	}
+	if csv_result_dir != filepath.Join(result_dir, "csv") {
+		WarningLog("Potential issue: CSV results output dir is not set to expected value...\n\texpected: results\\csv\n\tactual: %s\n", csv_result_dir)
+	}
+
+	// uses projects.txt by default
+	var projects_path string = ".\\projects.txt"
+
+	// set the type of printouts
+	SetLoggers(general_log_enabled, debug_log_enabled, warning_log_enabled, failure_log_enabled)
+
+	// goconcurrency.exe (projects_file_path, keep_repos, overwrite_results, separate_results, debug_log_enabled, warning_log_enabled, failure_log_enabled)
+	if len(os.Args) > 1 {
+		projects_path = os.Args[1]
+		if len(os.Args) > 2 {
+			// keep repo
+			if _repo_bool, _repo_err := strconv.ParseBool(os.Args[2]); _repo_err == nil {
+				keep_repos = _repo_bool
+			}
+			if len(os.Args) > 3 {
+				// separate results
+				if _result_over_bool, _result_over_err := strconv.ParseBool(os.Args[3]); _result_over_err == nil {
+					overwrite_results = _result_over_bool
+				}
+				if len(os.Args) > 4 {
+					// separate results
+					if _result_bool, _result_err := strconv.ParseBool(os.Args[4]); _result_err == nil {
+						separate_results = _result_bool
+					}
+					// check for log declaration, must for all 3
+					if len(os.Args) > 5 {
+						if len(os.Args) >= 7 {
+							// debugging
+							if _debug_bool, _debug_err := strconv.ParseBool(os.Args[5]); _debug_err == nil {
+								debug_log_enabled = _debug_bool
+							}
+							// warning
+							if _warning_bool, _warning_err := strconv.ParseBool(os.Args[6]); _warning_err == nil {
+								warning_log_enabled = _warning_bool
+							}
+							// failure
+							if _failure_bool, _failure_err := strconv.ParseBool(os.Args[7]); _failure_err == nil {
+								failure_log_enabled = _failure_bool
+							}
+							// update
+							SetLoggers(general_log_enabled, debug_log_enabled, warning_log_enabled, failure_log_enabled)
+						} else {
+							// only partial logging parameters provided
+							WarningLog("Only %d out of 3 \"Logging\" parameters provided. Using defaults.\n\n", len(os.Args)-2)
+						}
+					}
+				}
+			}
+		} else {
+			GeneralLog("Default \"Logging\" options will be used.\n\n")
+		}
+	} else {
+		GeneralLog("No \"projects.txt\" path provided. Will assume one is in the local directory.\n\n")
+	}
+
+	// print settings
+	GeneralLog("Proceeding with the following parameters:\n")
+	GeneralLog("Projects path: %s\n", projects_path)
+	GeneralLog("Keeping repos: %t\n", keep_repos)
+	GeneralLog("Separating results: %t\n", overwrite_results)
+	GeneralLog("Separating results: %t\n", separate_results)
+	GeneralLog("Output logging settings:\n\tGeneral: %t\n\tDebug: %t\n\tWarning: %t\n\tFailure: %t\n\n", general_log_enabled, debug_log_enabled, warning_log_enabled, failure_log_enabled)
+
+	GeneralLog("Uneditable logging settings:\n\tVerbose: %t\n\tPanic: %t\n\tExit: %t\n\n", false, true, true)
+
+	// try to read, if cant then exit
+	data, e := os.ReadFile(projects_path)
+	if e != nil {
+		ExitLog(1, "Unable to open the file where the projects are stored...\n\tpath: %s\n\terror: %v\n", projects_path, e)
+	}
+	// array of user/repo
+	proj_listings := strings.Split(strings.ReplaceAll(string(data), "\r", ""), "\n")
+	// var project_counters []Counter
+
+	// wipe results?
+	if overwrite_results {
+		o_r_err_ := os.RemoveAll(result_dir)
+		if o_r_err_ == nil {
+			GeneralLog("Wiped result dir\n")
+		} else if !os.IsNotExist(o_r_err_) {
+			PanicLog(o_r_err_, "Unable to wipe result dir\n")
+		}
+	}
+
+	// create directories
+	if _csv_path, _csv_depth, _csv_success, _csv_err := EnsureDir(csv_result_dir, true); !_csv_success && _csv_err != nil {
+		WarningLog("Unable to make the dir needed to store the resulting CSV files...\n\tpath: %s\n\tdepth: %d\n\tsuccess: %t\n\terror: %v\n", _csv_path, _csv_depth, _csv_success, _csv_err)
+	}
+	if _html_path, _html_depth, _html_success, _html_err := EnsureDir(html_result_dir, true); !_html_success && _html_err != nil {
+		WarningLog("Unable to make the dir needed to store the resulting HTML files...\n\tpath: %s\n\tdepth: %d\n\tsuccess: %t\n\terror: %v\n", _html_path, _html_depth, _html_success, _html_err)
+	}
+	if _clone_path, _clone_depth, _clone_success, _clone_err := EnsureDir(clone_dir, true); !_clone_success && _clone_err != nil {
+		WarningLog("Unable to make the dir needed to store the files of the repos this tool will download...\n\tpath: %s\n\tdepth: %d\n\tsuccess: %t\n\terror: %v\n", _clone_path, _clone_depth, _clone_success, _clone_err)
+	} else {
+		if !keep_repos {
+			defer os.RemoveAll(clone_dir)
+			GeneralLog("Marked the Clone Directory to be deleted after run.\n")
+		}
+	}
+
+	// for running tests, then exit
+	if projects_path == "test" {
 		var new_counter PackageCounter = ParseDir("test", "tests", "")
 		var test_counter Counter = HtmlOutputCounters([]*PackageCounter{&new_counter}, "test", "test", nil, "")
 
@@ -77,72 +206,285 @@ func main() {
 		test_counter = ParseConcurrencyPrimitives("tests", test_counter) // analyses occurences of Waitgroup,mutexes and operations on them
 		fmt.Println(len(test_counter.Features))
 
-		OutputCounters("tests", []*PackageCounter{&new_counter}, "", test_counter)
+		CsvOutputCounters("tests", []*PackageCounter{&new_counter}, "", test_counter)
+		// exit program
 		return
 	}
 
-	data, e := ioutil.ReadFile(os.Args[1])
-
-	if e != nil {
-		fmt.Printf("prevent panic by handling failure accessing a path %q: %v\n", os.Args[1], e)
-		return
-	}
-	proj_listings := strings.Split(string(data), "\n")
-	// var project_counters []Counter
-
+	//
 	var index_data *IndexFileData = &IndexFileData{Indexes: []*IndexData{}}
 
-	for _, project_name := range proj_listings {
+	GeneralLog("Initialisation Complete\n\n")
 
+	// go through each project:
+	// 	clone repo
+	//
+	GeneralLog("Starting %d projects.\n\n", len(proj_listings))
+	for _index, project_name := range proj_listings {
 		if project_name != "" {
+			GeneralLog("Project %d/%d: %s\n", _index+1, len(proj_listings), project_name)
+
 			proj_name := filepath.Base(string(project_name))
 			var path_to_dir string
 			var commit_hash string
+
 			path_to_dir, commit_hash = CloneRepo(string(project_name))
 
-			_, err1 := os.Stat(path_to_dir)
-			if os.IsNotExist(err1) {
+			if _, _repo_dir_err := os.Stat(path_to_dir); _repo_dir_err != nil && os.IsNotExist((_repo_dir_err)) {
+				// skip this repo as it failed
+				FailureLog("Aborting project \"%s\". Error occured during Cloning of repo\n\tpath: %s\n\terror: %v\n", project_name, path_to_dir, _repo_dir_err)
 				continue
 			}
+
 			var packages []*PackageCounter
 
-			err := filepath.Walk(path_to_dir, func(path string, info os.FileInfo, err error) error {
-
-				if err != nil {
-					fmt.Printf("prevent panic by handling failure accessing a path %q: %v\n", path_to_dir, err)
-					return err
+			walk_err := filepath.Walk(path_to_dir, func(path string, info os.FileInfo, walk_func_err error) error {
+				// called on each file visited in the walk
+				// if file cannot be reached and throws error
+				if walk_func_err != nil {
+					WarningLog("FileWalk of %s, file path could not be accessed.\n\tpath: %s\n\terror: %v\n", project_name, path_to_dir, walk_func_err)
+					return walk_func_err
 				}
+				// check if folder that needs to be explored
 				if info.IsDir() {
+					// dir to be skipped
 					if info.Name() == "vendor" || info.Name() == "tests" || info.Name() == "test" {
-						fmt.Printf("skipping a dir without errors: %+v \n", info.Name())
+						DebugLog("Skipping dir in FileWalk of %s due to its name: \"%+v\"\n", project_name, info.Name())
 						return filepath.SkipDir
 					}
+					// dir to be explored
+					VerboseLog("FileWalk of %s, found dir to explore: %+v\n", project_name, info.Name())
 					var new_counter PackageCounter = ParseDir(proj_name, path, path_to_dir)
 					packages = append(packages, &new_counter)
 					return nil
 				}
+				// just a file
+				VerboseLog("FileWalk of %s, found file: %+v\n", project_name, info.Name())
 				return nil
 			})
 
-			if err != nil {
-				fmt.Printf("error walking the path %q: %v\n", path_to_dir, err)
+			// if any errors on file walk
+			if walk_err != nil {
+				// skip analysis
+				FailureLog("Aborting project \"%s\". Error occured during FileWalk of files in repo.\n\tpath: %s\n\terror: %s\n", project_name, path_to_dir, walk_err)
+				continue
+			} else {
+				DebugLog("FileWalk of \"%s\" yielded no errors.\n", project_name)
 			}
+
+			// create html results
 			var project_counter Counter = HtmlOutputCounters(packages, commit_hash, project_name, index_data, path_to_dir) // html
 
+			// analysis
 			project_counter = ParseConcurrencyPrimitives(path_to_dir, project_counter) // analyses occurences of Waitgroup,mutexes and operations on them
 
-			OutputCounters(project_name, packages, path_to_dir, project_counter) // csvs
+			// create csv results
+			CsvOutputCounters(project_name, packages, path_to_dir, project_counter) // csvs
 			// project_counters = append(project_counters, project_counter)
+
+			// remove repo as we go if enabled
+			_temp_proj_dir := filepath.Join(clone_dir, ProjectName(project_name))
+			repo_info, repo_err := os.Stat(_temp_proj_dir)
+			if repo_err == nil {
+				if keep_repos {
+					GeneralLog("Finished Project %d/%d: %s\n\tkeep repo: %t\n\trepo size: %v\n\n\n", _index+1, len(proj_listings), project_name, keep_repos, repo_info.Size())
+				} else {
+					DebugLog("Deleting repo for project at %s\n", _temp_proj_dir)
+					if repo_rem_err := os.RemoveAll(_temp_proj_dir); repo_rem_err != nil {
+						FailureLog("Error occured trying to delete repo dir: %s\n\terror: %v", _temp_proj_dir, repo_rem_err)
+					}
+					GeneralLog("Finished Project %d/%d: %s\n\n\n", _index+1, len(proj_listings), project_name)
+				}
+			} else {
+				WarningLog("Something has happened to the projects repo.\n")
+				GeneralLog("Finished Project %d/%d: %s\n\n\n", _index+1, len(proj_listings), project_name)
+			}
+			// for debugging
+			break
+		} else {
+			WarningLog("Skipping %d, \"%s\": Unable to read project from \"projects.txt\"\n", _index, project_name)
 		}
 	}
 	createIndexFile(index_data) // index html
 
+	// check if temp.go is still there
+	if _info, temp_err := os.Stat("temp.go"); temp_err == nil && !_info.IsDir() {
+		DebugLog("File \"temp.go\" was not deleted, removing now.\n")
+		t_err := os.Remove("temp.go")
+		if t_err == nil {
+			DebugLog("Successfully deleted \"temp.go\"\n")
+		} else {
+			FailureLog("Error: Unable to delete \"temp.go\", will need to be done manually...\n\t%v\n", t_err)
+		}
+	} else {
+		DebugLog("File \"temp.go\" was already deleted.\n")
+	}
+
+	DebugLog("Total Logs: %d\n", total_logs)
+
+	GeneralLog("Finished. Results can be found...\n\tlocal path: %s\n\tglobal path: %s\n\n", result_dir, GenerateFullPath(result_dir))
+
 }
+
 func createIndexFile(index_data *IndexFileData) {
 	f, err := os.Create("index.html")
 	if err != nil {
-		panic(err)
+		PanicLog(err, "Unable to create \"index.html\" file.\n")
+	} else {
+		GeneralLog("successfuly created index.html\n")
 	}
-	tmpl := template.Must(template.ParseFiles("../analyser/index_layout.html"))
+	tmpl := template.Must(template.ParseFiles("index_layout.html"))
 	tmpl.Execute(f, index_data) // write the index page
+}
+
+func GenerateWDPath() string {
+	wd, err := os.Getwd()
+	if err != nil {
+		PanicLog(err, "Unable to work out the current working directory.\n")
+	}
+	return wd
+}
+
+func GenerateFullPath(local_path string) string {
+	return filepath.Join(GenerateWDPath(), local_path)
+}
+
+func PathIsGlobal(path string) bool {
+	if strings.Contains(path, GenerateWDPath()) {
+		return true
+	} else {
+		return false
+	}
+}
+
+func ProjectName(project_name string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(string(project_name), "/", "___"), "-", "_"), "\\", " ")
+}
+
+func EnsureDir(_path string, build_parents bool) (string, int, bool, error) {
+	// for consistency
+	_path = strings.ReplaceAll(_path, "/", "\\")
+	// check already exists
+	if _, err1 := os.Stat(_path); err1 != nil {
+		if os.IsNotExist(err1) {
+			// try make dir
+			os.Mkdir(_path, dir_mode)
+			if _, err2 := os.Stat(_path); err2 != nil {
+				if os.IsNotExist(err2) {
+					// path not found, build parents
+					if build_parents {
+						outer_dir := filepath.Base(_path)
+						parent_dir, depth, success, parent_err := EnsureDir(strings.TrimSuffix(_path, "\\"+outer_dir), true)
+						// sanity check
+						if _path != parent_dir+"\\"+outer_dir {
+							WarningLog("EnsureDir,  %s: After creating the parent folders, the path returned doesn't match...\n\tparent path: %s\n", _path, filepath.Join(parent_dir, outer_dir))
+						}
+						// check successful recursion
+						if success && parent_err == nil {
+							// success
+							os.Mkdir(_path, dir_mode)
+							// final check
+							if _, err3 := os.Stat(_path); err3 != nil {
+								// check why error but doesnt exist
+								FailureLog("EnsureDir,  %s: Unrecoverable error occured. Unable to create dir despite parent folders being created...\n\tdepth: %d\n\terror: %v\n", _path, depth, err3)
+								return _path, depth + 1, false, err3
+							} else {
+								// success !!!
+								DebugLog("EnsureDir,  %s: Success, created %d parents too.\n", _path, depth)
+								return _path, depth + 1, true, nil
+							}
+						} else {
+							// a parent failed, pass it on
+							FailureLog("EnsureDir,  %s: Parent unable to be created, pass it on...\n\tparent path: %s\n\tbuild parents: %t\n\terror: %v\n", _path, parent_dir, build_parents, parent_err)
+							return parent_dir, depth + 1, false, nil
+						}
+					}
+					FailureLog("EnsureDir,  %s: Unable to create dir, and parents haven't been told to be created...\n\tbuild parents: %t\n\terror: %v\n", _path, build_parents, err2)
+					return _path, 1, false, err2
+				} else {
+					FailureLog("EnsureDir,  %s: Unrecoverable error occured. Unable to create dir...\n\tbuild parents: %t\n\terror: %v\n", _path, build_parents, err2)
+					return _path, 1, false, err2
+				}
+			} else {
+				DebugLog("EnsureDir,  %s: Success.\n", _path)
+				return _path, 1, true, nil
+			}
+		} else {
+			FailureLog("EnsureDir,  %s: Unrecoverable error occured. Unable to check if dir exists...\n\tbuild parents: %t\n\terror: %v\n", _path, build_parents, err1)
+			return _path, 1, false, err1
+		}
+	} else {
+		// already exists, return
+		DebugLog("EnsureDir,  %s: Dir already exists.\n", _path)
+		return _path, 1, true, nil
+	}
+}
+
+func GeneratePackageListFiles(path_to_dir string) string {
+	git_cmd := exec.Command("ls")
+	git_cmd.Dir = path_to_dir
+	var git_out bytes.Buffer
+	git_cmd.Stdout = &git_out
+	err := git_cmd.Run()
+	if err != nil {
+		WarningLog("Main, GPLF: Error while running git ls-files: %v\n", err)
+	}
+	filenames := ""
+	for _, name := range strings.Split(git_out.String(), "\n") {
+		if strings.HasSuffix(name, ".go") {
+			filenames += filepath.Join(path_to_dir, name) + "\n"
+		}
+	}
+	// replace with forward for url output
+	return strings.ReplaceAll(filenames, "\\", "/")
+}
+
+func ReadNumberOfLines(list_filenames string) int {
+	var xargs_out bytes.Buffer
+	var git_out bytes.Buffer
+	filenames := strings.Split(list_filenames, "\n")
+	// return if no files to count
+	if len(filenames) == 0 {
+		DebugLog("Main, RNoL: File list was empty.\n")
+		return 0
+	}
+
+	git_out.Reset()
+	for _, filename := range strings.Split(list_filenames, "\n") {
+		if filename != "" {
+			git_out.WriteString("\"" + filename + "\"\n")
+		}
+	}
+	xargs_cmd := exec.Command("xargs", "cat")
+	xargs_cmd.Stdin = &git_out
+	xargs_cmd.Stdout = &xargs_out
+	xargs_err := xargs_cmd.Run()
+	if xargs_err != nil {
+		FailureLog("Main, RNoF: Error running cat...\n\terror: %v\n", xargs_err)
+	}
+
+	f, _ := os.Create("temp.go")
+	f.Write(xargs_out.Bytes())
+	var wc_out bytes.Buffer
+	wc_cmd := exec.Command("cloc", "temp.go", "--csv")
+	// wc_cmd.Stdin = &xargs_out
+	wc_cmd.Stdout = &wc_out
+	err3 := wc_cmd.Run()
+	if err3 != nil {
+		FailureLog("Main, RNoF: Error while running word count...\n\terror: %v\n", err3)
+	}
+	defer os.Remove("temp.go")
+	defer f.Close()
+	word_count := strings.Split(strings.TrimSpace(wc_out.String()), "\n")
+	cloc_infos := strings.Split(strings.TrimSpace(word_count[len(word_count)-1]), ",")
+
+	// if the command isnt blank
+	if len(cloc_infos) >= 5 {
+		// in the csv, from 0, index 4 is lines of code
+		num, _ := strconv.Atoi(cloc_infos[4])
+		return num
+	} else {
+		WarningLog("Main, RNoL: Command \"cloc\" may not be available on your system.\n\tCommand \"cloc\": Count Lines Of Code\n\tlink: https://github.com/AlDanial/cloc\n\tinstall: npm install -g cloc\n")
+		return 0
+	}
 }
