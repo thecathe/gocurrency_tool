@@ -83,9 +83,11 @@ var overwrite_repos bool = false
 var separate_results bool = false
 var single_run bool = false
 
+var projects_to_process int = 0
+
 var repo_memory_used int64 = 0
 var repo_memory_capacity int64 = 0
-var repo_memory_limited bool = true
+var repo_memory_limited bool = false
 
 func main() {
 	// goconcurrency.exe (projects_file_path, overwrite_results, separate_results, overwrite_repos, debug_log_enabled, warning_log_enabled, failure_log_enabled, dev, repo_capacity)
@@ -123,67 +125,74 @@ func main() {
 			// exit program
 			return
 		}
-
 		if len(os.Args) > 2 {
-			// separate results
-			if _result_over_bool, _result_over_err := strconv.ParseBool(os.Args[2]); _result_over_err == nil {
-				overwrite_results = _result_over_bool
+			// project to process
+			if _process_int, _process_err := strconv.ParseInt(os.Args[2], 10, 64); _process_err == nil {
+				projects_to_process = int(_process_int)
 			} else {
 				WarningLog("Error with 2nd parameter: \"%+v\"\n", os.Args[2])
 			}
 			if len(os.Args) > 3 {
 				// separate results
-				if _result_bool, _result_err := strconv.ParseBool(os.Args[3]); _result_err == nil {
-					separate_results = _result_bool
+				if _result_over_bool, _result_over_err := strconv.ParseBool(os.Args[3]); _result_over_err == nil {
+					overwrite_results = _result_over_bool
 				} else {
-					WarningLog("Error with 3rd parameter:\"%+v\"\n", os.Args[3])
+					WarningLog("Error with 3rd parameter: \"%+v\"\n", os.Args[3])
 				}
 				if len(os.Args) > 4 {
-					// overwrite repos
-					if _repo_over_bool, _repo_over_err := strconv.ParseBool(os.Args[4]); _repo_over_err == nil {
-						overwrite_repos = _repo_over_bool
+					// separate results
+					if _result_bool, _result_err := strconv.ParseBool(os.Args[4]); _result_err == nil {
+						separate_results = _result_bool
 					} else {
-						WarningLog("Error with 4th parameter: \"%+v\"\n", os.Args[4])
+						WarningLog("Error with 4th parameter:\"%+v\"\n", os.Args[4])
 					}
-					// check for log declaration, must for all 3
-					if len(os.Args) > 7 {
-						if len(os.Args) >= 9 {
-							// debugging
-							if _debug_bool, _debug_err := strconv.ParseBool(os.Args[5]); _debug_err == nil {
-								debug_log_enabled = _debug_bool
-							} else {
-								WarningLog("Error with 5th parameter: \"%+v\"\n", os.Args[5])
-							}
-							// warning
-							if _warning_bool, _warning_err := strconv.ParseBool(os.Args[6]); _warning_err == nil {
-								warning_log_enabled = _warning_bool
-							} else {
-								WarningLog("Error with 6th parameter: \"%+v\"\n", os.Args[6])
-							}
-							// failure
-							if _failure_bool, _failure_err := strconv.ParseBool(os.Args[7]); _failure_err == nil {
-								failure_log_enabled = _failure_bool
-							} else {
-								WarningLog("Error with 7th parameter: \"%+v\"\n", os.Args[7])
-							}
-							// update
-							SetLoggers(general_log_enabled, debug_log_enabled, warning_log_enabled, failure_log_enabled)
-
-							if len(os.Args) > 9 && os.Args[8] == "dev" {
-								single_run = true
-								keep_repos = true
-								// repo capacity
-								if _repo_cap_bool, _repo_cap_err := strconv.ParseInt(os.Args[9], 10, 64); _repo_cap_err == nil && keep_repos {
-									repo_memory_capacity = _repo_cap_bool
-									single_run = false
-									keep_repos = true
-								} else {
-									WarningLog("Error with 9th parameter: \"%+v\"\n", os.Args[9])
-								}
-							}
+					if len(os.Args) > 5 {
+						// overwrite repos
+						if _repo_over_bool, _repo_over_err := strconv.ParseBool(os.Args[5]); _repo_over_err == nil {
+							overwrite_repos = _repo_over_bool
 						} else {
-							// only partial logging parameters provided
-							WarningLog("Not allowed to define logs partially.\n\n")
+							WarningLog("Error with 5th parameter: \"%+v\"\n", os.Args[5])
+						}
+						// check for log declaration, must for all 3
+						if len(os.Args) > 6 {
+							if len(os.Args) >= 8 {
+								// debugging
+								if _debug_bool, _debug_err := strconv.ParseBool(os.Args[6]); _debug_err == nil {
+									debug_log_enabled = _debug_bool
+								} else {
+									WarningLog("Error with 6th parameter: \"%+v\"\n", os.Args[6])
+								}
+								// warning
+								if _warning_bool, _warning_err := strconv.ParseBool(os.Args[7]); _warning_err == nil {
+									warning_log_enabled = _warning_bool
+								} else {
+									WarningLog("Error with 7th parameter: \"%+v\"\n", os.Args[7])
+								}
+								// failure
+								if _failure_bool, _failure_err := strconv.ParseBool(os.Args[8]); _failure_err == nil {
+									failure_log_enabled = _failure_bool
+								} else {
+									WarningLog("Error with 8th parameter: \"%+v\"\n", os.Args[8])
+								}
+								// update
+								SetLoggers(general_log_enabled, debug_log_enabled, warning_log_enabled, failure_log_enabled)
+
+								if len(os.Args) > 10 && os.Args[9] == "dev" {
+									single_run = true
+									keep_repos = true
+									// repo capacity
+									if _repo_cap_bool, _repo_cap_err := strconv.ParseInt(os.Args[10], 10, 64); _repo_cap_err == nil && keep_repos {
+										repo_memory_capacity = _repo_cap_bool
+										single_run = false
+										keep_repos = true
+									} else {
+										WarningLog("Error with 10th parameter: \"%+v\"\n", os.Args[10])
+									}
+								}
+							} else {
+								// only partial logging parameters provided
+								WarningLog("Not allowed to define logs partially.\n\n")
+							}
 						}
 					}
 				}
@@ -200,7 +209,7 @@ func main() {
 	}
 
 	// print settings
-	GeneralLog("Proceeding with the following parameters:\n\tProjects path: %s\n\tRepo Memory Limited: %t, capacity: %d MB\n\tOverwriting results: %t\n\tSeparating results: %t\n\tOverwriting repos: %t\n\tSingle run: %t (dev mode)\n\tKeeping repos: %t\n\n", projects_path, repo_memory_limited, repo_memory_capacity, overwrite_results, separate_results, overwrite_repos, single_run, keep_repos)
+	GeneralLog("Proceeding with the following parameters:\n\tProjects path: %s\n\tProjecs to process: %d, if 0 then all.\n\tOverwriting results: %t\n\tSeparating results: %t\n\tOverwriting repos: %t\n\tSingle run: %t (dev mode)\n\tKeeping repos: %t\n\tRepo Memory Limited: %t, capacity: %d MB\n\n", projects_path, projects_to_process, overwrite_results, separate_results, overwrite_repos, single_run, keep_repos, repo_memory_limited, repo_memory_capacity)
 
 	GeneralLog("Output logging settings:\n\tGeneral: %t\n\tDebug: %t\n\tWarning: %t\n\tFailure: %t\n\n", general_log_enabled, debug_log_enabled, warning_log_enabled, failure_log_enabled)
 
@@ -213,6 +222,11 @@ func main() {
 	}
 	// array of user/repo
 	proj_listings := strings.Split(strings.ReplaceAll(string(data), "\r", ""), "\n")
+	var aborted_projects string
+
+	if projects_to_process == 0 {
+		projects_to_process = len(proj_listings)
+	}
 	// var project_counters []Counter
 
 	// wipe results?
@@ -251,10 +265,10 @@ func main() {
 	// go through each project:
 	// 	clone repo
 	//
-	GeneralLog("Starting %d projects.\n\n", len(proj_listings))
+	GeneralLog("Starting %d/%d projects.\n\n", projects_to_process, len(proj_listings))
 	for _index, project_name := range proj_listings {
-		if project_name != "" {
-			GeneralLog("Project %d/%d: %s\n", _index+1, len(proj_listings), project_name)
+		if project_name != "" && _index < projects_to_process {
+			GeneralLog("Project %d/%d: %s\n", _index+1, projects_to_process, project_name)
 
 			proj_name := filepath.Base(string(project_name))
 			var path_to_dir string
@@ -264,7 +278,8 @@ func main() {
 
 			if _, _repo_dir_err := os.Stat(path_to_dir); _repo_dir_err != nil && os.IsNotExist((_repo_dir_err)) {
 				// skip this repo as it failed
-				FailureLog("Aborting project \"%s\". Error occured during Cloning of repo\n\tpath: %s\n\terror: %v\n", project_name, path_to_dir, _repo_dir_err)
+				FailureLog("Aborting project \"%s\". Error occured during Cloning of repo\n\tpath: %s\n\terror: %v\n\n\n", project_name, path_to_dir, _repo_dir_err)
+				aborted_projects += fmt.Sprintf("gitclone fail: %s\n", project_name)
 				continue
 			}
 
@@ -298,14 +313,15 @@ func main() {
 			// if any errors on file walk
 			if walk_err != nil {
 				// skip analysis
-				FailureLog("Aborting project \"%s\". Error occured during FileWalk of files in repo.\n\tpath: %s\n\terror: %s\n", project_name, path_to_dir, walk_err)
+				FailureLog("Aborting project \"%s\". Error occured during FileWalk of files in repo.\n\tpath: %s\n\terror: %s\n\n\n", project_name, path_to_dir, walk_err)
+				aborted_projects += fmt.Sprintf("filewalk fail: %s\n", project_name)
 				continue
 			} else {
 				DebugLog("FileWalk of \"%s\" yielded no errors.\n", project_name)
 			}
 
 			if keep_repos {
-				GeneralLog("Skipping result output, as repos are being saved, and these would fail anyway. Saving time.\n")
+				GeneralLog("Skipping result output, as repos are being saved, and these would fail anyway. Saving time.\n\n")
 			} else {
 
 				// create html results
@@ -323,22 +339,18 @@ func main() {
 			_temp_proj_dir := filepath.Join(clone_dir, ProjectName(project_name))
 			_, repo_err := os.Stat(_temp_proj_dir)
 			if repo_err == nil {
+				_temp_dir_size, size_err := DirSize(_temp_proj_dir)
+				repo_dir_size_mb := int64(math.Ceil(float64(_temp_dir_size) / float64(1000000)))
+				repo_memory_used += repo_dir_size_mb
 				if keep_repos {
-					_temp_dir_size, size_err := DirSize(_temp_proj_dir)
-					repo_dir_size_mb := int64(math.Ceil(float64(_temp_dir_size) / float64(1000000)))
 					if size_err != nil {
 						FailureLog("Failed to calculate \"%s\" total size...\n\terror: %v\n", _temp_proj_dir, size_err)
 					} else {
-						repo_memory_used += repo_dir_size_mb
 						repo_memory_percent := int64(math.Ceil(float64(repo_memory_used) / float64(repo_memory_capacity) * 100))
-						// fmt.Printf("\n\n\n%d / %d = %v\n", repo_memory_used, repo_memory_capacity, repo_memory_used/repo_memory_capacity)
-						// fmt.Printf("(%d / %d)*100 = %v\n", repo_memory_used, repo_memory_capacity, (repo_memory_used/repo_memory_capacity)*100)
-						// fmt.Printf("float64((%d / %d)*100) = %v\n", repo_memory_used, repo_memory_capacity, float64((repo_memory_used/repo_memory_capacity)*100))
-						// fmt.Printf("ceil(float64((%d / %d)*100)) = %v\n", repo_memory_used, repo_memory_capacity, math.Ceil(float64((repo_memory_used/repo_memory_capacity)*100)))
-						GeneralLog("Finished Project %d/%d: %s\n\trepo path: %s\n\trepo size: %d MB\n\tcurrent total: %d MB\n\n", _index+1, len(proj_listings), project_name, _temp_proj_dir, repo_dir_size_mb, repo_memory_used)
+						GeneralLog("Finished Project %d/%d: %s\n\trepo path: %s\n\trepo size: %d MB\n\tcurrent total: %d MB\n\n", _index+1, projects_to_process, project_name, _temp_proj_dir, repo_dir_size_mb, repo_memory_used)
 						GeneralLog("Memory used: (%d MB/%d MB), %v %%\n\n\n", repo_memory_used, repo_memory_capacity, repo_memory_percent)
 						if repo_memory_limited && repo_memory_used > repo_memory_capacity {
-							GeneralLog("Memory capacity exceeded, skipping the remaining %d repos\n\n\n", len(proj_listings)-_index)
+							GeneralLog("Memory capacity exceeded, skipping the remaining %d repos\n\n\n", projects_to_process-_index)
 							break
 						}
 					}
@@ -347,11 +359,11 @@ func main() {
 					if repo_rem_err := os.RemoveAll(_temp_proj_dir); repo_rem_err != nil {
 						FailureLog("Error occured trying to delete repo dir: %s\n\terror: %v", _temp_proj_dir, repo_rem_err)
 					}
-					GeneralLog("Finished Project %d/%d: %s\n\n\n", _index+1, len(proj_listings), project_name)
+					GeneralLog("Finished Project %d/%d: %s\n\n\n", _index+1, projects_to_process, project_name)
 				}
 			} else {
 				WarningLog("Something has happened to the projects repo.\n")
-				GeneralLog("Finished Project %d/%d: %s\n\n\n", _index+1, len(proj_listings), project_name)
+				GeneralLog("Finished Project %d/%d: %s\n\n\n", _index+1, projects_to_process, project_name)
 			}
 			// for debugging when dev
 			if single_run {
@@ -361,7 +373,12 @@ func main() {
 				DebugLog("Continuing through user/repo projects\n")
 			}
 		} else {
-			WarningLog("Skipping %d, \"%s\": Unable to read project from \"projects.txt\"\n", _index, project_name)
+			if projects_to_process == 0 {
+				WarningLog("Skipping %d, \"%s\": Unable to read project from \"projects.txt\"\n", _index, project_name)
+			} else {
+				GeneralLog("Skipping remaining %d projects due to limit of %d\n", len(proj_listings)-_index, projects_to_process)
+				break
+			}
 		}
 	}
 	createIndexFile(index_data) // index html
@@ -380,6 +397,16 @@ func main() {
 	}
 
 	DebugLog("Total Logs: %d\n", total_logs)
+
+	aborted_count := len(strings.Split(aborted_projects, "\n")) - 1
+	GeneralLog("Total number of projects aborted: %d\n%s\n", aborted_count, aborted_projects)
+	GeneralLog("Total number of projects succeeded: %d\n\n", len(proj_listings)-aborted_count)
+
+	if keep_repos {
+		GeneralLog("Total size of \"%s\": %d MB\n", clone_dir, repo_memory_used)
+	} else {
+		GeneralLog("Total size of Repos downloaded, now deleted: %d MB\n", repo_memory_used)
+	}
 
 	GeneralLog("Finished. Results can be found...\n\tlocal path: %s\n\tglobal path: %s\n\n", result_dir, GenerateFullPath(result_dir))
 

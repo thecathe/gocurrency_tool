@@ -7,4 +7,4 @@ gocurrency_tool.exe
 *.exe
 temp.go
 .DS_Store
-analyser.rar
+analyser*.rar

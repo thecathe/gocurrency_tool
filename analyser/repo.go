@@ -26,7 +26,7 @@ func CloneRepo(url string) (string, string) {
 
 		// check cloned correctly
 		if git_err != nil {
-			WarningLog("CloneRepo,  %s: Dir to clone repo into was not empty...\n\tpath: %s\n\terror: %v\n", url, repo_dir, git_err)
+			WarningLog("CloneRepo,  %s: Error when cloning...\n\tpath: %s\n\terror: %v\n", url, repo_dir, git_err)
 		} else {
 			// sucess, pass
 			GeneralLog("CloneRepo,  %s: Cloning successful\n\n", url)

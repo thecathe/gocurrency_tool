@@ -130,7 +130,7 @@ func ParseConcurrencyPrimitives(path_to_dir string, counter Counter) Counter {
 		ast_map[pack.Name] = pack
 	}
 
-	DebugLog("Parser, PCP: Analysing each package.")
+	DebugLog("Parser, PCP: Analysing %d packages.", len(ast_map))
 	for pack_name, node := range ast_map {
 		// Analyse each package
 

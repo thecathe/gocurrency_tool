@@ -69,7 +69,7 @@ func CsvOutputCounters(_project_name string, package_counters []*PackageCounter,
 
 	if separate_results {
 		f.Close()
-		GeneralLog("Csv, OutputCounters:: Results file \"%s\" is finished, creating next result file.\n", file_name)
+		GeneralLog("Csv, OutputCounters:: Results file \"%s\" is finished.\n", file_name)
 		project_name = _project_name + "_package_lines"
 		file_name = ProjectName(project_name) + ".csv"
 
@@ -95,7 +95,7 @@ func CsvOutputCounters(_project_name string, package_counters []*PackageCounter,
 
 	if separate_results {
 		f.Close()
-		GeneralLog("Csv, OutputCounters:: Results file \"%s\" is finished, creating next result file.\n", file_name)
+		GeneralLog("Csv, OutputCounters:: Results file \"%s\" is finished.\n", file_name)
 		project_name = _project_name + "_file_data"
 		file_name = ProjectName(project_name) + ".csv"
 
