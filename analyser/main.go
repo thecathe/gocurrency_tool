@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"html/template"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -78,10 +79,16 @@ var failure_log_enabled bool = true
 
 var keep_repos bool = false
 var overwrite_results bool = false
+var overwrite_repos bool = false
 var separate_results bool = false
+var single_run bool = false
+
+var repo_memory_used int64 = 0
+var repo_memory_capacity int64 = 0
+var repo_memory_limited bool = true
 
 func main() {
-	// goconcurrency.exe (projects_file_path, keep_repos, overwrite_results, separate_results, debug_log_enabled, warning_log_enabled, failure_log_enabled)
+	// goconcurrency.exe (projects_file_path, overwrite_results, separate_results, overwrite_repos, debug_log_enabled, warning_log_enabled, failure_log_enabled, dev, repo_capacity)
 
 	// run with git bash in /analyser:
 	// go build && ./gocurrency_tool.exe
@@ -89,58 +96,94 @@ func main() {
 	// run, keeping clones, deleting old results and splitting results
 	// go build && ./gocurrency_tool.exe projects.txt true true true
 
-	// assertion
-	if html_result_dir != filepath.Join(result_dir, "html") {
-		WarningLog("Potential issue: HTML results output dir is not set to expected value...\n\texpected: results\\html\n\tactual: %s\n", html_result_dir)
-	}
-	if csv_result_dir != filepath.Join(result_dir, "csv") {
-		WarningLog("Potential issue: CSV results output dir is not set to expected value...\n\texpected: results\\csv\n\tactual: %s\n", csv_result_dir)
-	}
-
 	// uses projects.txt by default
 	var projects_path string = ".\\projects.txt"
 
-	// set the type of printouts
+	// set the type of printouts: defaults
 	SetLoggers(general_log_enabled, debug_log_enabled, warning_log_enabled, failure_log_enabled)
+	GeneralLog("The program takes the following optional parameters, but also has defaults:\n\n\tprojects_file_path, str: path to input dir\n\n\toverwrite_results, bool: true false.\nPermission to delete anything inside the \"%s\" directory to output results.\n\n\tseparate_results, bool: true false.\nSeparates the CSV output into 3 files.\n\n\toverwrite_repos, bool:true false.\nPermission to delete anything inside the \"%s\" directory to clone repos.\n\n\tdebug_log_enabled, bool: true false\n\n\twarning_log_enabled, bool: true false\n\n\tfailure_log_enabled, bool: true false\n\n\tdev, str:\nspecial keyword \"dev\" will make the program run once, without deleting the repo.\n\n\tmax_repo_memory, int:\nThe program will run more than once, getting as far as it can while staying under the capacity in MB provided here. 0 Means uncapped. The total memory used is checked after each repo has been downloaded. Keeping repos like this will break most of the analysis features. Purely for manual debug/analysis only.\n\n\n\n", result_dir, clone_dir)
+	GeneralLog("Example git bash command:\n\ngo build && ./gocurrency_tool.exe projects.txt true true true false true true dev 1000\n\nThis would run the program for all user/repo in \"projects.txt\", overwriting everything, splitting the CSV into separate files, hide debug logs.\n\n\n")
+	GeneralLog("Example git bash command for debugging/developing this program:\n\ngo build && ./gocurrency_tool.exe projects.txt true true true false true true dev 1000\n\nThis would run the program for the first project, overwriting everything, save repos with a capacity of ~1 GB splitting the CSV into separate files, and hides debug logs.\n\n\n")
 
-	// goconcurrency.exe (projects_file_path, keep_repos, overwrite_results, separate_results, debug_log_enabled, warning_log_enabled, failure_log_enabled)
+	// goconcurrency.exe (projects_file_path, overwrite_results, separate_results, debug_log_enabled, warning_log_enabled, failure_log_enabled, dev, repo_capacity)
 	if len(os.Args) > 1 {
 		projects_path = os.Args[1]
+		// check for test!
+		// for running tests, then exit
+		if projects_path == "test" {
+			InitDirs()
+			var new_counter PackageCounter = ParseDir("test", "tests", "")
+			var test_counter Counter = HtmlOutputCounters([]*PackageCounter{&new_counter}, "test", "test", nil, "")
+
+			fmt.Println(len(test_counter.Features))
+			test_counter = ParseConcurrencyPrimitives("tests", test_counter) // analyses occurences of Waitgroup,mutexes and operations on them
+			fmt.Println(len(test_counter.Features))
+
+			CsvOutputCounters("tests", []*PackageCounter{&new_counter}, "", test_counter)
+			// exit program
+			return
+		}
+
 		if len(os.Args) > 2 {
-			// keep repo
-			if _repo_bool, _repo_err := strconv.ParseBool(os.Args[2]); _repo_err == nil {
-				keep_repos = _repo_bool
+			// separate results
+			if _result_over_bool, _result_over_err := strconv.ParseBool(os.Args[2]); _result_over_err == nil {
+				overwrite_results = _result_over_bool
+			} else {
+				WarningLog("Error with 2nd parameter: \"%+v\"\n", os.Args[2])
 			}
 			if len(os.Args) > 3 {
 				// separate results
-				if _result_over_bool, _result_over_err := strconv.ParseBool(os.Args[3]); _result_over_err == nil {
-					overwrite_results = _result_over_bool
+				if _result_bool, _result_err := strconv.ParseBool(os.Args[3]); _result_err == nil {
+					separate_results = _result_bool
+				} else {
+					WarningLog("Error with 3rd parameter:\"%+v\"\n", os.Args[3])
 				}
 				if len(os.Args) > 4 {
-					// separate results
-					if _result_bool, _result_err := strconv.ParseBool(os.Args[4]); _result_err == nil {
-						separate_results = _result_bool
+					// overwrite repos
+					if _repo_over_bool, _repo_over_err := strconv.ParseBool(os.Args[4]); _repo_over_err == nil {
+						overwrite_repos = _repo_over_bool
+					} else {
+						WarningLog("Error with 4th parameter: \"%+v\"\n", os.Args[4])
 					}
 					// check for log declaration, must for all 3
-					if len(os.Args) > 5 {
-						if len(os.Args) >= 7 {
+					if len(os.Args) > 7 {
+						if len(os.Args) >= 9 {
 							// debugging
 							if _debug_bool, _debug_err := strconv.ParseBool(os.Args[5]); _debug_err == nil {
 								debug_log_enabled = _debug_bool
+							} else {
+								WarningLog("Error with 5th parameter: \"%+v\"\n", os.Args[5])
 							}
 							// warning
 							if _warning_bool, _warning_err := strconv.ParseBool(os.Args[6]); _warning_err == nil {
 								warning_log_enabled = _warning_bool
+							} else {
+								WarningLog("Error with 6th parameter: \"%+v\"\n", os.Args[6])
 							}
 							// failure
 							if _failure_bool, _failure_err := strconv.ParseBool(os.Args[7]); _failure_err == nil {
 								failure_log_enabled = _failure_bool
+							} else {
+								WarningLog("Error with 7th parameter: \"%+v\"\n", os.Args[7])
 							}
 							// update
 							SetLoggers(general_log_enabled, debug_log_enabled, warning_log_enabled, failure_log_enabled)
+
+							if len(os.Args) > 9 && os.Args[8] == "dev" {
+								single_run = true
+								keep_repos = true
+								// repo capacity
+								if _repo_cap_bool, _repo_cap_err := strconv.ParseInt(os.Args[9], 10, 64); _repo_cap_err == nil && keep_repos {
+									repo_memory_capacity = _repo_cap_bool
+									single_run = false
+									keep_repos = true
+								} else {
+									WarningLog("Error with 9th parameter: \"%+v\"\n", os.Args[9])
+								}
+							}
 						} else {
 							// only partial logging parameters provided
-							WarningLog("Only %d out of 3 \"Logging\" parameters provided. Using defaults.\n\n", len(os.Args)-2)
+							WarningLog("Not allowed to define logs partially.\n\n")
 						}
 					}
 				}
@@ -152,12 +195,13 @@ func main() {
 		GeneralLog("No \"projects.txt\" path provided. Will assume one is in the local directory.\n\n")
 	}
 
+	if keep_repos && repo_memory_capacity == 0 {
+		repo_memory_limited = false
+	}
+
 	// print settings
-	GeneralLog("Proceeding with the following parameters:\n")
-	GeneralLog("Projects path: %s\n", projects_path)
-	GeneralLog("Keeping repos: %t\n", keep_repos)
-	GeneralLog("Separating results: %t\n", overwrite_results)
-	GeneralLog("Separating results: %t\n", separate_results)
+	GeneralLog("Proceeding with the following parameters:\n\tProjects path: %s\n\tRepo Memory Limited: %t, capacity: %d MB\n\tOverwriting results: %t\n\tSeparating results: %t\n\tOverwriting repos: %t\n\tSingle run: %t (dev mode)\n\tKeeping repos: %t\n\n", projects_path, repo_memory_limited, repo_memory_capacity, overwrite_results, separate_results, overwrite_repos, single_run, keep_repos)
+
 	GeneralLog("Output logging settings:\n\tGeneral: %t\n\tDebug: %t\n\tWarning: %t\n\tFailure: %t\n\n", general_log_enabled, debug_log_enabled, warning_log_enabled, failure_log_enabled)
 
 	GeneralLog("Uneditable logging settings:\n\tVerbose: %t\n\tPanic: %t\n\tExit: %t\n\n", false, true, true)
@@ -180,41 +224,29 @@ func main() {
 			PanicLog(o_r_err_, "Unable to wipe result dir\n")
 		}
 	}
-
-	// create directories
-	if _csv_path, _csv_depth, _csv_success, _csv_err := EnsureDir(csv_result_dir, true); !_csv_success && _csv_err != nil {
-		WarningLog("Unable to make the dir needed to store the resulting CSV files...\n\tpath: %s\n\tdepth: %d\n\tsuccess: %t\n\terror: %v\n", _csv_path, _csv_depth, _csv_success, _csv_err)
-	}
-	if _html_path, _html_depth, _html_success, _html_err := EnsureDir(html_result_dir, true); !_html_success && _html_err != nil {
-		WarningLog("Unable to make the dir needed to store the resulting HTML files...\n\tpath: %s\n\tdepth: %d\n\tsuccess: %t\n\terror: %v\n", _html_path, _html_depth, _html_success, _html_err)
-	}
-	if _clone_path, _clone_depth, _clone_success, _clone_err := EnsureDir(clone_dir, true); !_clone_success && _clone_err != nil {
-		WarningLog("Unable to make the dir needed to store the files of the repos this tool will download...\n\tpath: %s\n\tdepth: %d\n\tsuccess: %t\n\terror: %v\n", _clone_path, _clone_depth, _clone_success, _clone_err)
-	} else {
-		if !keep_repos {
-			defer os.RemoveAll(clone_dir)
-			GeneralLog("Marked the Clone Directory to be deleted after run.\n")
+	if overwrite_repos {
+		o_r_err_ := os.RemoveAll(clone_dir)
+		if o_r_err_ == nil {
+			GeneralLog("Wiped clone dir\n")
+		} else if !os.IsNotExist(o_r_err_) {
+			PanicLog(o_r_err_, "Unable to wipe clone dir\n")
 		}
 	}
 
-	// for running tests, then exit
-	if projects_path == "test" {
-		var new_counter PackageCounter = ParseDir("test", "tests", "")
-		var test_counter Counter = HtmlOutputCounters([]*PackageCounter{&new_counter}, "test", "test", nil, "")
-
-		fmt.Println(len(test_counter.Features))
-		test_counter = ParseConcurrencyPrimitives("tests", test_counter) // analyses occurences of Waitgroup,mutexes and operations on them
-		fmt.Println(len(test_counter.Features))
-
-		CsvOutputCounters("tests", []*PackageCounter{&new_counter}, "", test_counter)
-		// exit program
-		return
+	// assertion
+	if html_result_dir != filepath.Join(result_dir, "html") {
+		WarningLog("Potential issue: HTML results output dir is not set to expected value...\n\texpected: results\\html\n\tactual: %s\n", html_result_dir)
 	}
+	if csv_result_dir != filepath.Join(result_dir, "csv") {
+		WarningLog("Potential issue: CSV results output dir is not set to expected value...\n\texpected: results\\csv\n\tactual: %s\n", csv_result_dir)
+	}
+
+	InitDirs()
 
 	//
 	var index_data *IndexFileData = &IndexFileData{Indexes: []*IndexData{}}
 
-	GeneralLog("Initialisation Complete\n\n")
+	GeneralLog("Initialisation Complete\n\n\n")
 
 	// go through each project:
 	// 	clone repo
@@ -272,22 +304,44 @@ func main() {
 				DebugLog("FileWalk of \"%s\" yielded no errors.\n", project_name)
 			}
 
-			// create html results
-			var project_counter Counter = HtmlOutputCounters(packages, commit_hash, project_name, index_data, path_to_dir) // html
+			if keep_repos {
+				GeneralLog("Skipping result output, as repos are being saved, and these would fail anyway. Saving time.\n")
+			} else {
 
-			// analysis
-			project_counter = ParseConcurrencyPrimitives(path_to_dir, project_counter) // analyses occurences of Waitgroup,mutexes and operations on them
+				// create html results
+				var project_counter Counter = HtmlOutputCounters(packages, commit_hash, project_name, index_data, path_to_dir) // html
 
-			// create csv results
-			CsvOutputCounters(project_name, packages, path_to_dir, project_counter) // csvs
-			// project_counters = append(project_counters, project_counter)
+				// analysis
+				project_counter = ParseConcurrencyPrimitives(path_to_dir, project_counter) // analyses occurences of Waitgroup,mutexes and operations on them
 
+				// create csv results
+				CsvOutputCounters(project_name, packages, path_to_dir, project_counter) // csvs
+				// project_counters = append(project_counters, project_counter)
+
+			}
 			// remove repo as we go if enabled
 			_temp_proj_dir := filepath.Join(clone_dir, ProjectName(project_name))
-			repo_info, repo_err := os.Stat(_temp_proj_dir)
+			_, repo_err := os.Stat(_temp_proj_dir)
 			if repo_err == nil {
 				if keep_repos {
-					GeneralLog("Finished Project %d/%d: %s\n\tkeep repo: %t\n\trepo size: %v\n\n\n", _index+1, len(proj_listings), project_name, keep_repos, repo_info.Size())
+					_temp_dir_size, size_err := DirSize(_temp_proj_dir)
+					repo_dir_size_mb := int64(math.Ceil(float64(_temp_dir_size) / float64(1000000)))
+					if size_err != nil {
+						FailureLog("Failed to calculate \"%s\" total size...\n\terror: %v\n", _temp_proj_dir, size_err)
+					} else {
+						repo_memory_used += repo_dir_size_mb
+						repo_memory_percent := int64(math.Ceil(float64(repo_memory_used) / float64(repo_memory_capacity) * 100))
+						// fmt.Printf("\n\n\n%d / %d = %v\n", repo_memory_used, repo_memory_capacity, repo_memory_used/repo_memory_capacity)
+						// fmt.Printf("(%d / %d)*100 = %v\n", repo_memory_used, repo_memory_capacity, (repo_memory_used/repo_memory_capacity)*100)
+						// fmt.Printf("float64((%d / %d)*100) = %v\n", repo_memory_used, repo_memory_capacity, float64((repo_memory_used/repo_memory_capacity)*100))
+						// fmt.Printf("ceil(float64((%d / %d)*100)) = %v\n", repo_memory_used, repo_memory_capacity, math.Ceil(float64((repo_memory_used/repo_memory_capacity)*100)))
+						GeneralLog("Finished Project %d/%d: %s\n\trepo path: %s\n\trepo size: %d MB\n\tcurrent total: %d MB\n\n", _index+1, len(proj_listings), project_name, _temp_proj_dir, repo_dir_size_mb, repo_memory_used)
+						GeneralLog("Memory used: (%d MB/%d MB), %v %%\n\n\n", repo_memory_used, repo_memory_capacity, repo_memory_percent)
+						if repo_memory_limited && repo_memory_used > repo_memory_capacity {
+							GeneralLog("Memory capacity exceeded, skipping the remaining %d repos\n\n\n", len(proj_listings)-_index)
+							break
+						}
+					}
 				} else {
 					DebugLog("Deleting repo for project at %s\n", _temp_proj_dir)
 					if repo_rem_err := os.RemoveAll(_temp_proj_dir); repo_rem_err != nil {
@@ -299,8 +353,13 @@ func main() {
 				WarningLog("Something has happened to the projects repo.\n")
 				GeneralLog("Finished Project %d/%d: %s\n\n\n", _index+1, len(proj_listings), project_name)
 			}
-			// for debugging
-			break
+			// for debugging when dev
+			if single_run {
+				DebugLog("Finishing after single run\n")
+				break
+			} else {
+				DebugLog("Continuing through user/repo projects\n")
+			}
 		} else {
 			WarningLog("Skipping %d, \"%s\": Unable to read project from \"projects.txt\"\n", _index, project_name)
 		}
@@ -486,5 +545,38 @@ func ReadNumberOfLines(list_filenames string) int {
 	} else {
 		WarningLog("Main, RNoL: Command \"cloc\" may not be available on your system.\n\tCommand \"cloc\": Count Lines Of Code\n\tlink: https://github.com/AlDanial/cloc\n\tinstall: npm install -g cloc\n")
 		return 0
+	}
+}
+
+// https://stackoverflow.com/questions/32482673/how-to-get-directory-total-size
+func DirSize(path string) (int64, error) {
+	var size int64
+	err := filepath.Walk(path, func(_ string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() {
+			size += info.Size()
+		}
+		return err
+	})
+	return size, err
+}
+
+func InitDirs() {
+	// create directories
+	if _csv_path, _csv_depth, _csv_success, _csv_err := EnsureDir(csv_result_dir, true); !_csv_success && _csv_err != nil {
+		WarningLog("Unable to make the dir needed to store the resulting CSV files...\n\tpath: %s\n\tdepth: %d\n\tsuccess: %t\n\terror: %v\n", _csv_path, _csv_depth, _csv_success, _csv_err)
+	}
+	if _html_path, _html_depth, _html_success, _html_err := EnsureDir(html_result_dir, true); !_html_success && _html_err != nil {
+		WarningLog("Unable to make the dir needed to store the resulting HTML files...\n\tpath: %s\n\tdepth: %d\n\tsuccess: %t\n\terror: %v\n", _html_path, _html_depth, _html_success, _html_err)
+	}
+	if _clone_path, _clone_depth, _clone_success, _clone_err := EnsureDir(clone_dir, true); !_clone_success && _clone_err != nil {
+		WarningLog("Unable to make the dir needed to store the files of the repos this tool will download...\n\tpath: %s\n\tdepth: %d\n\tsuccess: %t\n\terror: %v\n", _clone_path, _clone_depth, _clone_success, _clone_err)
+	} else {
+		if !keep_repos {
+			defer os.RemoveAll(clone_dir)
+			GeneralLog("Marked the Clone Directory to be deleted after run.\n")
+		}
 	}
 }

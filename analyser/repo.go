@@ -63,7 +63,7 @@ func CloneRepo(url string) (string, string) {
 			WarningLog("CloneRepo,  %s: Error when writing to \"commits.csv\"\n\terror: %v\n", err)
 		}
 	} else {
-		FailureLog("CloneRepo,  %s: Unable to clone repo as the directory \"%s\" is not empty.\n", url, repo_dir)
+		WarningLog("CloneRepo,  %s: Dir to clone repo into was not empty...\n\tpath: %s\n", url, repo_dir)
 	}
 
 	return repo_dir, last_commit_hash

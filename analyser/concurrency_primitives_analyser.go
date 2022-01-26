@@ -66,7 +66,7 @@ func analyseLhs(pack_name string, expr ast.Expr, counter Counter, fileset *token
 
 	switch typ := removePointer(ast_map[pack_name].TypesInfo.TypeOf(expr)).(type) {
 	case nil:
-		FailureLog("CPA, ALhs: Type was nil...\n\tPack name: %s\n\tType: %+v\n\tError: %+v\n", pack_name, typ, expr)
+		DebugLog("CPA, ALhs: Type was nil...\n\tPack name: %s\n\tType: %+v\n\tError: %+v\n", pack_name, typ, expr)
 		return false, counter
 	case *types.Named:
 		feature := Feature{
@@ -96,7 +96,7 @@ func analyseUnderlying(pack_name string, expr ast.Expr, typ types.Type, depth in
 	if depth > 0 {
 		switch typ := removePointer(typ).(type) {
 		case nil:
-			FailureLog("CPA, AU: %s, Couldn't find type of %s", pack_name, expr)
+			DebugLog("CPA, AU: %s, Couldn't find type of %s", pack_name, expr)
 		case *types.Named:
 			feature := Feature{
 				F_filename:     fileset.Position(expr.Pos()).Filename,
