@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	html_result_dir = "results\\html"
+	html_result_dir = "_results\\html"
 )
 
 type PageData struct {

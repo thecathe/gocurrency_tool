@@ -6,10 +6,94 @@ import (
 	"strconv"
 )
 
+var scope_manager *ScopeManager
+
+// called on every file
 func AnalyseAst(fileset *token.FileSet, package_name string, filename string, node ast.Node, channel chan Counter, name string) {
+
 	var counter Counter = Counter{Go_count: 0, Send_count: 0, Rcv_count: 0, Chan_count: 0, filename: name}
+
+	if _scope_manager, ok := NewScopeManager(filename, fileset, node); ok {
+		scope_manager = _scope_manager
+		DebugLog("Analyser, %s: Scope Manager Created.\n", filename)
+	} else {
+		FailureLog("Analyser, %s: Scope Manager Creation Failed\n", filename)
+		return
+	}
+
+	GeneralLog("Analyser, %s: Printing ScopeManager.Scopes...\n%s\n", filename, scope_manager.Scopes.ToString())
+
+	// go through file
+	switch file := node.(type) {
+	case *ast.File:
+		// for each file
+		if _scope_manager, scope_id, ok := scope_manager.NewScope(file); ok {
+			scope_manager = _scope_manager
+			DebugLog("Analyser, %s: File Scope Successful.\n", filename)
+			// generate scope map
+			for _, file_decl := range file.Decls {
+				// for each global decl: func, const, var, import
+				if _scope_manager, scope_id, ok := scope_manager.NewScope(file_decl); ok {
+					scope_manager = _scope_manager
+					DebugLog("\nAnalyser, %s: Global Decl Scope Successful.\n", filename)
+					var node_visit_count int = 0
+					//
+					// start of each node inspect
+					//
+					ast.Inspect(file_decl, func(_decl ast.Node) bool {
+						node_visit_count++
+						// for every node in this scope
+						// give current node to manager
+						if _scope_manager, parse_type, type_id, ok := scope_manager.ParseNode(_decl); ok {
+							scope_manager = _scope_manager
+
+							var parse_type_string string = type_id
+							switch parse_type {
+							case PARSE_NONE:
+								// error occured
+							case PARSE_SCOPE:
+								// scope found
+								// parse_type_string = string(scope_manager.Scopes[ScopeID(type_id)].ID)
+							case PARSE_DECL:
+								// decl found
+							case PARSE_ASSIGN:
+								// assignment found
+							}
+							DebugLog("Analyser, %s: Inspect: %d, Type %s Success.\n%s\n", filename, node_visit_count, parse_type, parse_type_string)
+
+						} else {
+							scope_manager = _scope_manager
+
+							DebugLog("Analyser, %s: Inspect: %d, Type %s Failed.\n", filename, node_visit_count, parse_type)
+						}
+
+						return true
+					})
+					//
+					// end of each node insepct
+					//
+				} else {
+					scope_manager = _scope_manager
+					FailureLog("Analyser, %s: Decl Setup, NewScope Failed...\n\tID: %s\n", filename, scope_id)
+					continue
+				}
+				// finished that global decl
+				if _scope_manager, scope_id, ok := scope_manager.PopStack(); ok {
+					scope_manager = _scope_manager
+				} else {
+					scope_manager = _scope_manager
+					FailureLog("Analyser, %s: Decl Pop, PopStack Failed...\n\tID: %s\n", filename, scope_id)
+				}
+			}
+		} else {
+			scope_manager = _scope_manager
+			FailureLog("Analyser, %s: File Setup, NewScope Failed...\n\tID: %s\n", filename, scope_id)
+		}
+	}
+
 	var env []string = []string{}
 
+	// then analyse each node
 	switch file := node.(type) {
 	case *ast.File:
 		addGlobalVarToEnv(file, &env)
@@ -22,7 +106,9 @@ func AnalyseAst(fileset *token.FileSet, package_name string, filename string, no
 		}
 	}
 
+	GeneralLog("Analyser, %s: Finished Analysis.\n", filename)
 	setFeaturesNumber(&counter)
+	GeneralLog("Analyser, %s: Finished, Returning.\n", filename)
 	channel <- counter
 }
 
@@ -34,20 +120,27 @@ func analyseNode(fileset *token.FileSet, package_name string, filename string, n
 		F_type:         NONE}
 
 	switch x := node.(type) {
-	// Add General decleration
+	// if generic declaration that usese ( )
 	case *ast.GenDecl:
+		// if variable declaration
 		if x.Tok == token.VAR {
 			for _, spec := range x.Specs {
 				switch value_spec := spec.(type) {
+				// if it is either a constant or variable
 				case *ast.ValueSpec:
 					for index, value := range value_spec.Values {
 						switch call_expr := value.(type) {
+						// if it has arguments
 						case *ast.CallExpr:
 							switch ident := call_expr.Fun.(type) {
+							// get its identifier
 							case *ast.Ident:
+								// if it is a channel declaration
 								if ident.Name == "make" {
+									// if it is a valid declaration
 									if len(call_expr.Args) > 0 {
 										switch call_expr.Args[0].(type) {
+										// if it is a channel
 										case *ast.ChanType:
 											ident1 := value_spec.Names[index]
 											*env = append(*env, ident1.Name)
@@ -56,16 +149,22 @@ func analyseNode(fileset *token.FileSet, package_name string, filename string, n
 									}
 								}
 							}
+						// if it has elements for arguments
 						case *ast.CompositeLit:
 							switch array_type := call_expr.Type.(type) {
+							// get its identifier
 							case *ast.Ident:
 								// Possible assignment of a struct struct = Struct{bla:0, bla1}
+								// for each element,
 								for _, elt := range call_expr.Elts {
 									switch valueExp := elt.(type) {
+									// with their keys,
 									case *ast.KeyValueExpr:
 										switch ident := valueExp.Key.(type) {
+										// get their keys identifier
 										case *ast.Ident:
 											switch call := valueExp.Value.(type) {
+											// if the element has arguments
 											case *ast.CallExpr:
 												ident1 := value_spec.Names[index]
 												checkDepthChan(call, feature, env, counter, ident1.Name+"."+ident.Name, fileset, true)
@@ -145,6 +244,7 @@ func analyseNode(fileset *token.FileSet, package_name string, filename string, n
 				}
 			}
 		}
+	// if it is starting a goroutine
 	case *ast.GoStmt:
 		go_feature := Feature{
 			F_filename:     feature.F_filename,
@@ -153,6 +253,7 @@ func analyseNode(fileset *token.FileSet, package_name string, filename string, n
 		go_feature.F_type = GOROUTINE
 		counter.Go_count++
 		counter.Features = append(counter.Features, &go_feature)
+	// if it is sending on a channel
 	case *ast.SendStmt:
 		send_feature := Feature{
 			F_filename:     feature.F_filename,
@@ -161,6 +262,7 @@ func analyseNode(fileset *token.FileSet, package_name string, filename string, n
 		send_feature.F_type = SEND
 		counter.Send_count++
 		counter.Features = append(counter.Features, &send_feature)
+	// if it is an unary expression
 	case *ast.UnaryExpr:
 		if x.Op.String() == "<-" {
 			send_feature := Feature{
@@ -171,6 +273,7 @@ func analyseNode(fileset *token.FileSet, package_name string, filename string, n
 			counter.Rcv_count++
 			counter.Features = append(counter.Features, &send_feature)
 		}
+	// if it is an assignment (different to declaration)
 	case *ast.AssignStmt:
 		// look for a make(chan X) or a make(chan X,n)
 		for index, rh := range x.Rhs {
@@ -278,6 +381,7 @@ func analyseNode(fileset *token.FileSet, package_name string, filename string, n
 				}
 			}
 		}
+	// if it is a declaration
 	case *ast.DeclStmt:
 		// look for a make(chan X) or a make(chan X,n)  waitgroup (var wg *sync.Waitgroup) and mutexes (var mu *sync.Mutex)
 		switch decl := x.Decl.(type) {
@@ -344,7 +448,7 @@ func analyseNode(fileset *token.FileSet, package_name string, filename string, n
 		}
 
 		// Look if the type of LHS is a mutex or a waitgroup
-
+	// if it is a for loop
 	case *ast.ForStmt:
 		makeChanInFor(x, feature, env, counter, fileset)
 		// look in the block and see if goroutine are created in a for loop
@@ -389,7 +493,7 @@ func analyseNode(fileset *token.FileSet, package_name string, filename string, n
 				}
 			}
 		}
-
+	// if it is a for range loop
 	case *ast.RangeStmt:
 		// check if the stmt is a range over a channel
 
@@ -471,7 +575,7 @@ func analyseNode(fileset *token.FileSet, package_name string, filename string, n
 			}
 		}
 		makeChanInRange(x, feature, env, counter, fileset)
-
+	// a standalone statement, like a function all, and any return type is not used
 	case *ast.ExprStmt:
 		// looking for a close
 		switch call_expr := x.X.(type) {
@@ -492,24 +596,108 @@ func analyseNode(fileset *token.FileSet, package_name string, filename string, n
 				}
 			}
 		}
+	// a select statement
 	case *ast.SelectStmt:
+		// that is not empty
 		if x.Body != nil {
+			// trackers for each case in this select
+			// if another select reached, !!_!_!_! must be tracked differently
+			// each kept/discard receive is tracked separately
+			// timeouts are subset of either
 			var with_default bool = false
+			// var with_sync_send_action bool = false
+			// var with_async_send_action bool = false
+			// var with_sync_recv_kept_action bool = false
+			// var with_async_recv_kept_action bool = false
+			// var with_sync_recv_discard_action bool = false
+			// var with_async_recv_discard_action bool = false
+			// var with_timeout bool = false
+			// // instances in this select
+			// var send_sync_action_count int = 0
+			// var send_async_action_count int = 0
+			// var recv_sync_kept_action_count int = 0
+			// var recv_async_kept_action_count int = 0
+			// var recv_sync_discard_action_count int = 0
+			// var recv_async_discard_action_count int = 0
+			var timeout_count int = 0
 			for _, stmt := range x.Body.List {
 				switch comm := stmt.(type) {
+				// for each case in select
 				case *ast.CommClause:
 					if comm.Comm == nil {
 						// we have a select with a default
-
 						with_default = true
+					} else {
+						switch stmt_type := comm.Comm.(type) {
+						case *ast.AssignStmt:
+							// receive, data kept: possible timeout
+							// with_recv_kept_action = true
+							// recv_kept_action_count++
+							// look for source of receive :chan or timeout
+							for _, rhs_stmt := range stmt_type.Rhs {
+								switch unary_expr := rhs_stmt.(type) {
+								case *ast.UnaryExpr:
+									// both use this
+									switch call_or_ident := unary_expr.X.(type) {
+									case *ast.Ident:
+										// a normal receive, look for chan
+
+									case *ast.CallExpr:
+										// this is a return from a function
+										_with_timeout := isTimeout(call_or_ident)
+										if _with_timeout {
+											// with_timeout = true
+											timeout_count++
+										}
+									}
+								}
+							}
+							// see where value was saved
+							for _, lhs_stmt := range stmt_type.Lhs {
+								switch unary_expr := lhs_stmt.(type) {
+								case *ast.Ident:
+									lhs_obj := unary_expr.Obj
+									if lhs_obj.Kind == ast.Var {
+										// this is a variable assignment
+									}
+								}
+							}
+						case *ast.ExprStmt:
+							// receive, data discarded: possible timeout
+							// with_recv_discard_action = true
+							// recv_discard_action_count++
+							// look for timeout
+							switch unary_expr := stmt_type.X.(type) {
+							case *ast.UnaryExpr:
+								// both use this
+								switch call_or_ident := unary_expr.X.(type) {
+								case *ast.Ident:
+									// this is a normal receive
+								case *ast.CallExpr:
+									// this is a return from a function
+									_with_timeout := isTimeout(call_or_ident)
+									if _with_timeout {
+										// with_timeout = true
+										timeout_count++
+									}
+								}
+							}
+						case *ast.SendStmt:
+							// send
+							// with_send_action = true
+							// send_action_count++
+						}
 					}
 				}
 			}
 			select_feature := feature
+
 			if with_default {
+				// empty with just default
 				select_feature.F_type = DEFAULT_SELECT
 				counter.Default_select_count++
 			} else {
+				// empty select
 				select_feature.F_type = SELECT
 				counter.Select_count++
 			}
@@ -906,6 +1094,29 @@ func checkDepthChan(call_expr *ast.CallExpr, feature Feature, env *[]string, cou
 	return chan_found
 }
 
+func isTimeout(callExpr *ast.CallExpr) bool {
+	switch sel_expr := callExpr.Fun.(type) {
+	// found function
+	case *ast.SelectorExpr:
+		var sel_expr_x_name bool
+		var sel_expr_sel_name bool
+		switch sel_expr_x := sel_expr.X.(type) {
+		case *ast.Ident:
+			if sel_expr_x.Name == "time" {
+				sel_expr_x_name = true
+			}
+		}
+		if sel_expr.Sel.Name == "After" {
+			sel_expr_sel_name = true
+		}
+		// check if timeout found
+		if sel_expr_x_name && sel_expr_sel_name {
+			return true
+		}
+	}
+	return false
+}
+
 func isConstant(node ast.Node) (int, bool) {
 	var isCons bool = false
 	var value int = 0
@@ -940,6 +1151,10 @@ func isConstant(node ast.Node) (int, bool) {
 	}
 
 	return value, isCons
+}
+
+func chanType() {
+
 }
 
 func isChan(node interface{}, env *[]string) (bool, string) {
@@ -985,28 +1200,47 @@ func isChan(node interface{}, env *[]string) (bool, string) {
 	return false, chan_name
 }
 
+// adds all channels globally accessible in a file to env
 func addGlobalVarToEnv(file *ast.File, env *[]string) {
 	for _, decl := range file.Decls {
+		// for every global declaration in this file ( )
 		switch genDecl := decl.(type) {
 		case *ast.GenDecl:
+			// if the declaration type is generic
 			if genDecl.Tok == token.VAR {
+				// if it is a variable declaration
 				for _, spec := range genDecl.Specs {
 					switch value_spec := spec.(type) {
 					case *ast.ValueSpec:
+						// if it is a constant or a variable
 						for index, value := range value_spec.Values {
 							switch call_expr := value.(type) {
 							case *ast.CallExpr:
+								// if it has arguments, make(chan, ...)
 								switch ident := call_expr.Fun.(type) {
+								// get its identifier from its function expression
 								case *ast.Ident:
+									// if it is creating a channel
 									if ident.Name == "make" {
+										// if it is a valid declaration
 										if len(call_expr.Args) > 0 {
+											// check if it is sync or async
+											if len(call_expr.Args) > 1 {
+
+											}
 											switch call_expr.Args[0].(type) {
+											// if it is a channel
 											case *ast.ChanType:
 												*env = append(*env, value_spec.Names[index].Name)
 											}
 										}
 									}
 								}
+								// case *ast.Ident:
+								// 	// var or const
+								// 	var_type := call_expr.Obj.Kind
+								// 	data_type := call_expr.k
+
 							}
 						}
 					}

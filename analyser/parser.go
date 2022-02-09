@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bytes"
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -28,7 +31,38 @@ func ParseDir(proj_name string, path_to_dir string, path_to_main_dir string) Pac
 	f, err := parser.ParseDir(fileSet, path_to_dir, nil, parser.AllErrors)
 
 	if proj_name == "test" {
-		ast.Print(fileSet, f)
+		os.RemoveAll("_test_ast")
+		EnsureDir("_test_ast", true)
+		// write each file in set to file
+		// save_file_ast := func(_f *token.File) bool {
+		// 	file, err := os.Create(fmt.Sprintf("_test_ast\\%s.txt", filepath.Base(_f.Name())))
+		// 	if err == nil {
+		// 		// var f_writer *io.Writer = file.
+		// 		var f_writer bytes.Buffer
+		// 		var single_fileset *token.FileSet = token.NewFileSet()
+		// 		single_fileset.AddFile(_f.Name(), _f.Base(), _f.Size())
+		// 		ast.Fprint(&f_writer, single_fileset, f, ast.NotNilFilter)
+		// 		file.WriteString(f_writer.String())
+		// 	} else {
+		// 		FailureLog("Parse, Dir: Test, AST Print: Error...\n\t%v\n", err)
+		// 	}
+		// 	file.Close()
+		// 	GeneralLog("Finished writing to \"_test_ast\\\"%s\n", file.Name())
+		// 	return true
+		// }
+		// fileSet.Iterate(save_file_ast)
+
+		// ast.Print(fileSet, f)
+
+		// write to file
+		file, err := os.Create(fmt.Sprintf("_test_ast\\%s.txt", filepath.Base(path_to_dir)))
+		if err == nil {
+			var f_writer bytes.Buffer
+			ast.Fprint(&f_writer, fileSet, f, ast.NotNilFilter)
+			file.WriteString(f_writer.String())
+		} else {
+			FailureLog("Parse, Dir: Test, AST Print: Error...\n\t%v\n", err)
+		}
 	}
 	if err != nil {
 		WarningLog("ParseDir: An error was found in package %s...\n\terror: %v\n", filepath.Base(path_to_dir), err)
@@ -44,13 +78,21 @@ func ParseDir(proj_name string, path_to_dir string, path_to_main_dir string) Pac
 		counter.Counter.Package_name = strings.TrimPrefix(strings.TrimPrefix(path_to_dir, path_to_main_dir)+"/"+pack_name, "/")
 		counter.Counter.Package_path = path_to_dir
 		// Analyse each file
+		GeneralLog("Parser, Dir: Spawning Goroutine to analyse AST of each file: %d\n", len(pack.Files)-1)
 		for name, file := range pack.Files {
 			filename := strings.TrimPrefix(strings.TrimPrefix(path_to_dir, path_to_main_dir)+"/"+filepath.Base(name), "/")
-			go AnalyseAst(fileSet, pack_name, filename, file, package_counter_chan, name) // launch a goroutine for each file
+			// results sent accross package_counter_chan
+
+			// for testing
+			DebugLog("Parse, Dir: Spawning Goroutine: %s\n", filename)
+			if filename == "tests/async-communication.go" {
+				go AnalyseAst(fileSet, pack_name, filename, file, package_counter_chan, name) // launch a goroutine for each file
+			}
 		}
 
 		// Receive the results of the analysis of each file
-		for range pack.Files {
+		// for range pack.Files {
+		for i := 0; i < 1; i++ {
 
 			var new_counter Counter = <-package_counter_chan
 
@@ -88,6 +130,8 @@ func ParseDir(proj_name string, path_to_dir string, path_to_main_dir string) Pac
 
 		}
 
+		GeneralLog("Parser, Dir: Retrieved AST analysis from all Goroutines\n")
+
 	}
 
 	return counter
@@ -124,6 +168,58 @@ func ParseConcurrencyPrimitives(path_to_dir string, counter Counter) Counter {
 
 	if err != nil {
 		FailureLog("Parser, PCP: Could not load: %s\n\terror: %v\n", path_to_dir, err)
+		GeneralLog("Parser, PCP: Attempting to fix project, to load packages.\n")
+
+		// THIS WILL COLLECT ALL MISSING PACKAGES
+		init_cmd := exec.Command("go", "mod", "init")
+		init_cmd.Dir = path_to_dir
+		var init_out bytes.Buffer
+		init_cmd.Stdout = &init_out
+		var init_err_out bytes.Buffer
+		init_cmd.Stderr = &init_err_out
+		init_err := init_cmd.Run()
+
+		if init_err != nil {
+			VerboseLog("Parser, PCP: Attempted to run \"%v\" and it failed:\n\tpath: %s\n\terror: %v\n\tstdout: %v\n\tstderr:\n%v\n", init_cmd.Args, init_cmd.Dir, init_err, init_cmd.Stdout, init_cmd.Stderr)
+			// guess module name
+			init_cmd = exec.Command("go", "mod", "init", ProjectURL(filepath.Base(path_to_dir)))
+			init_cmd.Dir = path_to_dir
+			var init_out bytes.Buffer
+			init_cmd.Stdout = &init_out
+			var init_err_out bytes.Buffer
+			init_cmd.Stderr = &init_err_out
+			init_err = init_cmd.Run()
+
+			if init_err != nil {
+				FailureLog("Parser, PCP: Attempted to run \"%v\" and it failed:\n\tpath: %s\n\terror: %v\nThis could be an issue in the project itself or packages required, enable debug log to see the full error.\n", init_cmd.Args, init_cmd.Dir)
+				DebugLog("Parser, PCP: Attempted to run \"%v\" and it failed:\n\tpath: %s\n\terror: %v\n\tstdout: %v\n\tstderr:\n%v\n", init_cmd.Args, init_cmd.Dir, init_err, init_cmd.Stdout, init_cmd.Stderr)
+			} else {
+				GeneralLog("Parser, PCP: Successfully ran \"%v\"\n\touput:\n%v\n", init_cmd.Args, init_cmd.Stdout)
+			}
+		} else {
+			GeneralLog("Parser, PCP: Successfully ran \"%v\"\n\touput:\n%v\n", init_cmd.Args, init_cmd.Stdout)
+		}
+
+		tidy_cmd := exec.Command("go", "mod", "tidy")
+		tidy_cmd.Dir = path_to_dir
+		var tidy_out bytes.Buffer
+		tidy_cmd.Stdout = &tidy_out
+		var tidy_err_out bytes.Buffer
+		tidy_cmd.Stderr = &tidy_err_out
+		tidy_err := tidy_cmd.Run()
+
+		if tidy_err != nil {
+			FailureLog("Parser, PCP: Attempted to run \"%v\" and it failed:\n\tpath: %s\n\terror: \nThis could be an issue in the packages required, enable debug log to see the full error.\n", tidy_cmd.Args, tidy_cmd.Dir)
+			DebugLog("Parser, PCP: Attempted to run \"%v\" and it failed:\n\tpath: %s\n\terror: %v\n\tstdout: %v\n\tstderr:\n%v\n", tidy_cmd.Args, tidy_cmd.Dir, tidy_err, tidy_cmd.Stdout, tidy_cmd.Stderr)
+		} else {
+			GeneralLog("Parser, PCP: Successfully ran \"%v\"\n\touput:\n%v\n", tidy_cmd.Args, tidy_cmd.Stdout)
+			loaded_packages, err = packages.Load(cfg, package_names...)
+			if err != nil {
+				FailureLog("Parser, PCP: Load packages still failed:\n\tpath: %s\n\terror: %v\n\n", path_to_dir, err)
+			} else {
+				GeneralLog("Parser, PCP: Load packages recovered.\n")
+			}
+		}
 	}
 
 	for _, pack := range loaded_packages {

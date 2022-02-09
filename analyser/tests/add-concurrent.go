@@ -15,7 +15,7 @@ var (
 	decl_mu *sync.Mutex
 )
 
-func main() {
+func run() {
 	s1 := stru.Stru1{}
 	var wg_pt *sync.WaitGroup
 	var mu_pt *sync.Mutex

@@ -56,6 +56,43 @@ type Counter struct {
 	Known_over_unknown_chan           float64 // percent of known chan size over unknown
 	Features                          []*Feature
 	filename                          string // the name of the file
+	// RQ3
+	Timeout_count        int // How many timeouts in total
+	Timeout_select_count int // How many timeouts in selects
+	// RQ4
+	Select_Sync_R_Excl_Timeout_count                  int // How many selects only have sync. receives, excluding timeout
+	Select_Sync_R_Incl_Timeout_count                  int // How many selects only have sync. receives, including timeout
+	Select_Sync_R_Default_Excl_Timeout_count          int // How many selects only have sync. receives and defaults, excluding timeout
+	Select_Sync_R_Default_Incl_Timeout_count          int // How many selects only have sync. receives and defaults, including timeout
+	Select_Async_R_Excl_Timeout_count                 int // How many selects only have async. receives, excluding timeout
+	Select_Async_R_Incl_Timeout_count                 int // How many selects only have async. receives, including timeout
+	Select_Async_R_Default_Excl_Timeout_count         int // How many selects only have async. receives and defaults, excluding timeout
+	Select_Async_R_Default_Incl_Timeout_count         int // How many selects only have async. receives and defaults, including timeout
+	Select_Sync_S_count                               int // How many selects only have sync. receives
+	Select_Sync_S_Default_count                       int // How many selects only have sync. receives
+	Select_Sync_S_Timeout_count                       int // How many selects only have sync. receives
+	Select_Sync_S_Default_Timeout_count               int // How many selects only have sync. receives
+	Select_Async_S_count                              int // How many selects only have async. receives
+	Select_Async_S_Default_count                      int // How many selects only have async. receives
+	Select_Async_S_Timeout_count                      int // How many selects only have async. receives
+	Select_Async_S_Default_Timeout_count              int // How many selects only have sync. receives
+	Select_Sync_S_Sync_R_Excl_Timeout_count           int // How many selects only have sync. send and sync. receive, excluding timeout
+	Select_Sync_S_Sync_R_Incl_Timeout_count           int // How many selects only have sync. send and sync. receive, including timeout
+	Select_Sync_S_Sync_R_Default_Excl_Timeout_count   int // How many selects only have sync. send and sync. receive and defaults, excluding timeout
+	Select_Sync_S_Sync_R_Default_Incl_Timeout_count   int // How many selects only have sync. send and sync. receive and defaults, including timeout
+	Select_Async_S_Sync_R_Excl_Timeout_count          int // How many selects only have async. send and sync. receive, excluding timeout
+	Select_Async_S_Sync_R_Incl_Timeout_count          int // How many selects only have async. send and sync. receive, including timeout
+	Select_Async_S_Sync_R_Default_Excl_Timeout_count  int // How many selects only have async. send and sync. receive and defaults, excluding timeout
+	Select_Async_S_Sync_R_Default_Incl_Timeout_count  int // How many selects only have async. send and sync. receive and defaults, including timeout
+	Select_Sync_S_Async_R_Excl_Timeout_count          int // How many selects only have sync. send and async. receive, excluding timeout
+	Select_Sync_S_Async_R_Incl_Timeout_count          int // How many selects only have sync. send and async. receive, including timeout
+	Select_Sync_S_Async_R_Default_Excl_Timeout_count  int // How many selects only have sync. send and async. receive and defaults, excluding timeout
+	Select_Sync_S_Async_R_Default_Incl_Timeout_count  int // How many selects only have sync. send and async. receive and defaults, including timeout
+	Select_Async_S_Async_R_Excl_Timeout_count         int // How many selects only have async. send and async. receive, excluding timeout
+	Select_Async_S_Async_R_Incl_Timeout_count         int // How many selects only have async. send and async. receive, including timeout
+	Select_Async_S_Async_R_Default_Excl_Timeout_count int // How many selects only have async. send and async. receive and defaults, excluding timeout
+	Select_Async_S_Async_R_Default_Incl_Timeout_count int // How many selects only have async. send and async. receive and defaults, including timeout
+
 }
 
 type PackageCounter struct {
@@ -66,14 +103,28 @@ type PackageCounter struct {
 	Num_files         int
 }
 
+type ProjectCounter struct {
+	Counter          Counter // the overall counter for the project
+	Package_counters []*PackageCounter
+	Project_name     string
+	Num_packages     int
+}
+
+type GlobalCounter struct {
+	Counter          Counter // overall counter for all projects processed
+	Project_counters []*ProjectCounter
+	Num_projects     int
+}
+
 const (
-	clone_dir  = "cloned_projects"
+	clone_dir  = "_cloned_projects"
 	dir_mode   = os.ModeDir // os.ModePerm
-	result_dir = "results"
+	result_dir = "_results"
+	temp_go    = "_temp.go"
 )
 
 var general_log_enabled bool = true
-var debug_log_enabled bool = true
+var debug_log_enabled bool = false
 var warning_log_enabled bool = true
 var failure_log_enabled bool = true
 
@@ -89,6 +140,9 @@ var repo_memory_used int64 = 0
 var repo_memory_capacity int64 = 0
 var repo_memory_limited bool = false
 
+// uses projects.txt by default
+var projects_path string = ".\\projects.txt"
+
 func main() {
 	// goconcurrency.exe (projects_file_path, overwrite_results, separate_results, overwrite_repos, debug_log_enabled, warning_log_enabled, failure_log_enabled, dev, repo_capacity)
 
@@ -97,9 +151,6 @@ func main() {
 
 	// run, keeping clones, deleting old results and splitting results
 	// go build && ./gocurrency_tool.exe projects.txt true true true
-
-	// uses projects.txt by default
-	var projects_path string = ".\\projects.txt"
 
 	// set the type of printouts: defaults
 	SetLoggers(general_log_enabled, debug_log_enabled, warning_log_enabled, failure_log_enabled)
@@ -114,16 +165,27 @@ func main() {
 		// for running tests, then exit
 		if projects_path == "test" {
 			InitDirs()
+			GeneralLog("Entering Test:\n\n")
+			// force debug
+			SetLoggers(true, true, true, true)
+			DebugLog("Enabled all Loggers.\n\n")
 			var new_counter PackageCounter = ParseDir("test", "tests", "")
 			var test_counter Counter = HtmlOutputCounters([]*PackageCounter{&new_counter}, "test", "test", nil, "")
 
-			fmt.Println(len(test_counter.Features))
+			GeneralLog("Test Counter, Features: %d, before PCP.\n", len(test_counter.Features)-1)
 			test_counter = ParseConcurrencyPrimitives("tests", test_counter) // analyses occurences of Waitgroup,mutexes and operations on them
-			fmt.Println(len(test_counter.Features))
+
+			GeneralLog("Test Counter, Features: %d, after PCP\n", len(test_counter.Features)-1)
+
+			// for i, f := range test_counter.Features {
+			// 	GeneralLog("Test: Feature %d:\n%v\n\tline: %v\n\ttype: %v, %v\n\taddit.: %v\n\n", i, f.F_filename, f.F_line_num, f.F_type, f.F_type_num, f.F_number)
+			// }
 
 			CsvOutputCounters("tests", []*PackageCounter{&new_counter}, "", test_counter)
-			// exit program
-			return
+			separate_results = true
+			CsvOutputCounters("tests", []*PackageCounter{&new_counter}, "", test_counter)
+
+			ExitLog(1, "Finished Tests\n")
 		}
 		if len(os.Args) > 2 {
 			// project to process
@@ -181,8 +243,9 @@ func main() {
 									single_run = true
 									keep_repos = true
 									// repo capacity
-									if _repo_cap_bool, _repo_cap_err := strconv.ParseInt(os.Args[10], 10, 64); _repo_cap_err == nil && keep_repos {
-										repo_memory_capacity = _repo_cap_bool
+									if _repo_cap_int, _repo_cap_err := strconv.ParseInt(os.Args[10], 10, 64); _repo_cap_err == nil && keep_repos {
+										repo_memory_capacity = _repo_cap_int
+										repo_memory_limited = true
 										single_run = false
 										keep_repos = true
 									} else {
@@ -224,8 +287,9 @@ func main() {
 	proj_listings := strings.Split(strings.ReplaceAll(string(data), "\r", ""), "\n")
 	var aborted_projects string
 
+	total_project_count := len(proj_listings) - 1
 	if projects_to_process == 0 {
-		projects_to_process = len(proj_listings)
+		projects_to_process = total_project_count
 	}
 	// var project_counters []Counter
 
@@ -265,7 +329,7 @@ func main() {
 	// go through each project:
 	// 	clone repo
 	//
-	GeneralLog("Starting %d/%d projects.\n\n", projects_to_process, len(proj_listings))
+	GeneralLog("Starting %d/%d projects.\n\n", projects_to_process, total_project_count)
 	for _index, project_name := range proj_listings {
 		if project_name != "" && _index < projects_to_process {
 			GeneralLog("Project %d/%d: %s\n", _index+1, projects_to_process, project_name)
@@ -276,7 +340,7 @@ func main() {
 
 			path_to_dir, commit_hash = CloneRepo(string(project_name))
 
-			if _, _repo_dir_err := os.Stat(path_to_dir); _repo_dir_err != nil && os.IsNotExist((_repo_dir_err)) {
+			if _, _repo_dir_err := os.Stat(path_to_dir); _repo_dir_err != nil {
 				// skip this repo as it failed
 				FailureLog("Aborting project \"%s\". Error occured during Cloning of repo\n\tpath: %s\n\terror: %v\n\n\n", project_name, path_to_dir, _repo_dir_err)
 				aborted_projects += fmt.Sprintf("gitclone fail: %s\n", project_name)
@@ -376,7 +440,7 @@ func main() {
 			if projects_to_process == 0 {
 				WarningLog("Skipping %d, \"%s\": Unable to read project from \"projects.txt\"\n", _index, project_name)
 			} else {
-				GeneralLog("Skipping remaining %d projects due to limit of %d\n", len(proj_listings)-_index, projects_to_process)
+				GeneralLog("Skipping remaining %d projects due to limit of %d\n", total_project_count-_index, projects_to_process)
 				break
 			}
 		}
@@ -384,23 +448,23 @@ func main() {
 	createIndexFile(index_data) // index html
 
 	// check if temp.go is still there
-	if _info, temp_err := os.Stat("temp.go"); temp_err == nil && !_info.IsDir() {
-		DebugLog("File \"temp.go\" was not deleted, removing now.\n")
-		t_err := os.Remove("temp.go")
+	if _info, temp_err := os.Stat(temp_go); temp_err == nil && !_info.IsDir() {
+		DebugLog("File \"%s\" was not deleted, removing now.\n", temp_go)
+		t_err := os.Remove(temp_go)
 		if t_err == nil {
-			DebugLog("Successfully deleted \"temp.go\"\n")
+			DebugLog("Successfully deleted \"%s\"\n", temp_go)
 		} else {
-			FailureLog("Error: Unable to delete \"temp.go\", will need to be done manually...\n\t%v\n", t_err)
+			FailureLog("Error: Unable to delete \"%s\", will need to be done manually...\n\t%v\n", temp_go, t_err)
 		}
 	} else {
-		DebugLog("File \"temp.go\" was already deleted.\n")
+		DebugLog("File \"%s\" was already deleted.\n", temp_go)
 	}
 
 	DebugLog("Total Logs: %d\n", total_logs)
 
 	aborted_count := len(strings.Split(aborted_projects, "\n")) - 1
 	GeneralLog("Total number of projects aborted: %d\n%s\n", aborted_count, aborted_projects)
-	GeneralLog("Total number of projects succeeded: %d\n\n", len(proj_listings)-aborted_count)
+	GeneralLog("Total number of projects succeeded: %d\n\n", total_project_count-aborted_count)
 
 	if keep_repos {
 		GeneralLog("Total size of \"%s\": %d MB\n", clone_dir, repo_memory_used)
@@ -444,7 +508,11 @@ func PathIsGlobal(path string) bool {
 }
 
 func ProjectName(project_name string) string {
-	return strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(string(project_name), "/", "___"), "-", "_"), "\\", " ")
+	return strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(string(project_name), "/", "___"), "-", "_"), "\\", "")
+}
+
+func ProjectURL(project_name string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(string(project_name), "___", "/"), "_", "-"), "\\", "/")
 }
 
 func EnsureDir(_path string, build_parents bool) (string, int, bool, error) {
@@ -549,17 +617,17 @@ func ReadNumberOfLines(list_filenames string) int {
 		FailureLog("Main, RNoF: Error running cat...\n\terror: %v\n", xargs_err)
 	}
 
-	f, _ := os.Create("temp.go")
+	f, _ := os.Create(temp_go)
 	f.Write(xargs_out.Bytes())
 	var wc_out bytes.Buffer
-	wc_cmd := exec.Command("cloc", "temp.go", "--csv")
+	wc_cmd := exec.Command("cloc", temp_go, "--csv")
 	// wc_cmd.Stdin = &xargs_out
 	wc_cmd.Stdout = &wc_out
 	err3 := wc_cmd.Run()
 	if err3 != nil {
 		FailureLog("Main, RNoF: Error while running word count...\n\terror: %v\n", err3)
 	}
-	defer os.Remove("temp.go")
+	defer os.Remove(temp_go)
 	defer f.Close()
 	word_count := strings.Split(strings.TrimSpace(wc_out.String()), "\n")
 	cloc_infos := strings.Split(strings.TrimSpace(word_count[len(word_count)-1]), ",")
@@ -601,7 +669,7 @@ func InitDirs() {
 	if _clone_path, _clone_depth, _clone_success, _clone_err := EnsureDir(clone_dir, true); !_clone_success && _clone_err != nil {
 		WarningLog("Unable to make the dir needed to store the files of the repos this tool will download...\n\tpath: %s\n\tdepth: %d\n\tsuccess: %t\n\terror: %v\n", _clone_path, _clone_depth, _clone_success, _clone_err)
 	} else {
-		if !keep_repos {
+		if !keep_repos && projects_path != "test" {
 			defer os.RemoveAll(clone_dir)
 			GeneralLog("Marked the Clone Directory to be deleted after run.\n")
 		}
