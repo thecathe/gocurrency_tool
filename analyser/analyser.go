@@ -29,14 +29,14 @@ func AnalyseAst(fileset *token.FileSet, package_name string, filename string, no
 	case *ast.File:
 		// for each file
 
-		if _scope_manager, _parse_type := scope_manager.ParseNode(&node); _parse_type != scopemanager.PARSE_NONE {
+		if _scope_manager, _parse_type := scope_manager.ParseNode(*node); _parse_type != scopemanager.PARSE_NONE {
 			scope_manager = _scope_manager
 			DebugLog("Analyser, %s: File Scope Successful.\n", filename)
 
 			// generate scope map
-			for _, file_decl := range file.Decls{
+			for _, file_decl := range file.Decls {
 				// go through each scope in file
-				if _scope_manager, _parse_type := scope_manager.ParseNode(&file_decl); _parse_type  != scopemanager.PARSE_NONE {
+				if _scope_manager, _parse_type := scope_manager.ParseNode(*file_decl); _parse_type  != scopemanager.PARSE_NONE {
 					scope_manager = _scope_manager
 					DebugLog("Analyser, %s: Global Scope Successful.\n", filename)
 					var node_visit_count int = 0
@@ -48,7 +48,7 @@ func AnalyseAst(fileset *token.FileSet, package_name string, filename string, no
 						node_visit_count++
 						// for every node in this scope
 						// give current node to manager
-						if _scope_manager, parse_type := scope_manager.ParseNode(&_decl); parse_type != scopemanager.PARSE_NONE {
+						if _scope_manager, parse_type := scope_manager.ParseNode(*_decl); parse_type != scopemanager.PARSE_NONE {
 							scope_manager = _scope_manager
 							DebugLog("Analyser, %s: Inspect: %d, Type %s Success.\n%s\n", filename, node_visit_count, parse_type)
 

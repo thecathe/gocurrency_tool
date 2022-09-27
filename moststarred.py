@@ -1,7 +1,6 @@
 import json
 import requests
 import getpass
-from pprint import pprint
 import os
 import time
 import datetime
@@ -113,11 +112,11 @@ while cont:
                 quit()
             else:
                 if len(repo['topics']) == 0:
-                    print(str(repo['full_name']), ','                      # , str(repo['description']),','
+                    print("#", str(i), ':', str(repo['full_name']), '\t:'                      # , str(repo['description']),','
                           , str(repo['watchers_count']))
                 else:
-                    print(str(repo['full_name']), ','                      # , str(repo['description']),','
-                          , str(repo['watchers_count']), ',', ','.join(repo['topics']))
+                    print("#", str(i), ': ', str(repo['full_name']), '\t:'                      # , str(repo['description']),','
+                          , str(repo['watchers_count']), '\n\t', ','.join(repo['topics']))
                     # keywords = keywords+(repodata['topics'])
 
                 visited_projects.append(str(repo['full_name']))
