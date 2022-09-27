@@ -483,7 +483,7 @@ func createIndexFile(index_data *IndexFileData) {
 	} else {
 		GeneralLog("successfuly created index.html\n")
 	}
-	tmpl := template.Must(template.ParseFiles("index_layout.html"))
+	tmpl := template.Must(template.ParseFiles("html\\index_layout.html"))
 	tmpl.Execute(f, index_data) // write the index page
 }
 

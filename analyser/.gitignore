@@ -1,6 +1,6 @@
 _results
-analyser
 _cloned_projects
+_tests
 go.mod
 go.sum
 gocurrency_tool.exe

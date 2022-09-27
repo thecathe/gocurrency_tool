@@ -1,0 +1,77 @@
+{
+  // outermost scope, contains n files
+  "package": {
+    "type": "*ast.Package"
+  },
+
+  // contains:
+  // - package-wide vars
+  // - package-wide const
+  // - file-scoped dependant imports
+  "file": {
+    "type": "*ast.File"
+  },
+
+  // generic decleration, depending on parent:
+  // - file as parent:
+  // - - package-wide vars
+  // - - package-wide const
+  // - - file-scoped dependant imports
+  // - declstmt as parent:
+  // - - scoped decl:
+  // - - - var
+  // - - -
+  "gendecl": {
+    "type": "*ast.DeclStmt"
+  },
+
+  // function literal, anonymous func used as argument/value
+  "func_lit": {
+    "type": "*ast.FuncLit"
+  },
+
+  // function call
+  "func_call": {
+    "type": "*ast.CallExpr"
+  },
+
+  // function decleration
+  "func_decl_stmt": {
+    "type": "*ast.FuncDecl"
+  },
+
+  // if statement
+  "if_stmt": {
+    "type": "*ast.IfStmt"
+  },
+
+  // select statement
+  "select_stmt": {
+    "type": "*ast.SelectStmt"
+  },
+
+  // switch statement
+  "switch_stmt": {
+    "type": "*ast.SwitchStmt"
+  },
+
+  // for loop statement
+  "for_stmt": {
+    "type": "*ast.ForStmt"
+  },
+
+  // ranged for loop statement
+  "for_range_stmt": {
+    "type": "*ast.RangeStmt"
+  },
+
+  // goroutine on named function
+  "go_named_func_call": {
+    "type": "*ast.GoStmt"
+  },
+
+  // goroutine on anon function
+  "go_anon_func_call": {
+    "type": "*ast.GoStmt"
+  }
+}
