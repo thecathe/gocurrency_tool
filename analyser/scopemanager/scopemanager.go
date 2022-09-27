@@ -821,6 +821,15 @@ func NewMapOfScopes() *MapOfScopes {
 	return &MapOfScopes{}
 }
 
+func (ms *MapOfScopes) ToString() string {
+	var _string = ""
+	for _, scope := range (*ms) {
+		var _temp = fmt.Sprintf("\nScope: %d\n\tType: %d", scope.ID, scope.Type)
+		_string = _string + _temp
+	}
+	return _string
+}
+
 // Scope
 //
 type Scope struct {

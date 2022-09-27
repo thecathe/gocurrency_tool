@@ -15,7 +15,7 @@ func AsyncCommunication() {
 	fmt.Printf("\n\n\nAsync Tests:\n\n")
 
 	var worker_contact chan chan int = make(chan chan int, async_job_maker_count)
-	var all_jobs_complete chan = make(chan bool, async_job_maker_count)
+	var all_jobs_complete chan bool = make(chan bool, async_job_maker_count)
 
 	var waitgroup_init sync.WaitGroup
 	var waitgroup_finish sync.WaitGroup
