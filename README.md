@@ -37,8 +37,24 @@ Make sure to close vscode now, before continuing to the next step.
 * Run ``` go mod tidy```
 * Run ``` go get```
 * Run ``` go build```
-* Put the projects you want to analyse in ``` .\projects.txt``` (comes prepopulated with 865 projects, or see below for generating your own)
-* Run ``` .\gocurrency_tool.exe .\projects.txt``` 
+* Put the projects you want to analyse in ``` projects.txt``` (comes prepopulated with 865 projects, or see below for generating your own)
+* Run ``` ./analyser.exe projects.txt``` 
+
+There are optional parameters for additional functionality:
+* string: projects_file_path 
+* bool:   overwrite_results
+* bool:   separate_results
+* bool:   overwrite_repos
+* bool:   show_debug_log
+* bool:   show_warning_log
+* bool:   show_failure_log
+* bool:   overwrite_results
+* string: dev (only runs it for the first project)
+* int:    repo_capacity (MB)
+Below is a reccomended command to run the tool:
+```
+./analyser.exe projects.txt true true false true true dev 1000
+``` 
 
 Gocurrency will create and populate ``` ./analyser/results ``` with the HTML and CSV results.
 Gocurrency will overwrite any existing results that were previously in that folder.
