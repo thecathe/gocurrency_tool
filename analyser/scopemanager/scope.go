@@ -1,5 +1,11 @@
 package scopemanager
 
+import (
+	"fmt"
+	"go/ast"
+	"go/token"
+)
+
 type ScopeType string
 
 const (
@@ -21,3 +27,53 @@ const (
 	// SCOPE_TYPE_GO_NAMED      ScopeType = "Goroutine (Named)"     // *ast.
 	// SCOPE_TYPE_GO_ANONYMOUS  ScopeType = "Goroutine (Anonymous)" // *ast.
 )
+
+// Scope
+//
+type Scope struct {
+	ID    ID
+	Node  *ast.Node
+	Decls *ScopeDeclMap
+	Type  ScopeType
+}
+
+// Returns a pointer to a Scope.
+func NewScope(node ast.Node, scope_type ScopeType) *Scope {
+	var scope Scope
+
+	scope.Node = &node
+	scope.Type = scope_type
+	scope.Decls = NewScopeDeclMap()
+
+	// set ID
+	scope.ID = NewScopeID(*scope.Node, scope.Type)
+
+	return &scope
+}
+
+// Returns the Pos of Scope.Node
+func (scope *Scope) Pos() token.Pos {
+	return (*scope.Node).Pos()
+}
+
+// Returns the End of Scope.Node
+func (scope *Scope) End() token.Pos {
+	return (*scope.Node).End()
+}
+
+// MapOfScopes
+//
+type MapOfScopes map[ID]*Scope
+
+func NewMapOfScopes() *MapOfScopes {
+	return &MapOfScopes{}
+}
+
+func (ms *MapOfScopes) ToString() string {
+	var _string = ""
+	for _, scope := range (*ms) {
+		var _temp = fmt.Sprintf("\nScope: %d\n\tType: %d", scope.ID, scope.Type)
+		_string = _string + _temp
+	}
+	return _string
+}

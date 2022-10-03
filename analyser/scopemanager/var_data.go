@@ -1,42 +1,9 @@
 package scopemanager
 
 import (
-	"go/ast"
 	"go/token"
 )
 
-// MapOfDecls
-//
-type MapOfDecls map[ID]*VarDecl
-
-func NewMapOfDecls() *MapOfDecls {
-	return &MapOfDecls{}
-}
-
-// VarDecl
-//
-type VarDecl struct {
-	Node   *ast.Node
-	Label  string
-	Type   VarType
-	Values []VarValue
-	Token  token.Token
-}
-
-//
-func (var_decl *VarDecl) Pos() token.Pos {
-	return (*var_decl.Node).Pos()
-}
-
-//
-func (var_decl *VarDecl) End() token.Pos {
-	return (*var_decl.Node).End()
-}
-
-//
-func (var_decl *VarDecl) ID() token.Pos {
-	return (*var_decl.Node).Pos()
-}
 
 // GeneralVarType
 //
@@ -59,3 +26,5 @@ type VarValue struct {
 	Pos     token.Pos
 	ScopeID ID
 }
+
+
