@@ -151,7 +151,7 @@ func HtmlOutputCounters(package_counters []*PackageCounter, commit string, proje
 	}
 
 	page.Project_counter = GenerateProjectCounter(project_counter)
-	if _, err = os.Stat("html_layout.html"); err != nil && os.IsNotExist(err) {
+	if _, err = os.Stat("html\\html_layout.html"); err != nil && os.IsNotExist(err) {
 		FailureLog("Html, OutputCounters: Unable to locate \"html_layout.html\"...\n\terror: %v\n", err)
 	}
 	tmpl := template.Must(template.ParseFiles("html\\html_layout.html"))

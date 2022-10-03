@@ -123,11 +123,11 @@ const (
 )
 
 //
-func (sm *ScopeManager) ParseNode(node *ast.Node) (*ScopeManager, ParseType) {
+func (sm *ScopeManager) ParseNode(node ast.Node) (*ScopeManager, ParseType) {
 
 	// Check if leaving current scope
 	if scope, ok := (*sm).Peek(); ok {
-		if (*node).Pos() > (*scope.Node).End() {
+		if (node).Pos() > (*scope.Node).End() {
 			// if current node starts after the current scope ends, left current scope
 			if _sm, ok := (*sm).Pop(); ok {
 				sm = _sm
@@ -142,7 +142,7 @@ func (sm *ScopeManager) ParseNode(node *ast.Node) (*ScopeManager, ParseType) {
 	}
 
 	// Check for each ScopeType
-	switch node_type := (*node).(type) {
+	switch node_type := (node).(type) {
 
 	// Scope: Package
 	case *ast.Package:
@@ -399,15 +399,15 @@ func (decl *VarDecl) AddValue(value VarValue) *VarDecl {
 
 // Creates a new VarDecl and adds it the the MapOfVarDecl
 // Node should be of type *ast.ValueSpec or *ast.AssignStmt
-func (sm *ScopeManager) NewVarDecl(node *ast.Node, tok token.Token) (*ScopeManager, bool) {
+func (sm *ScopeManager) NewVarDecl(node ast.Node, tok token.Token) (*ScopeManager, bool) {
 
-	switch node_type := (*node).(type) {
+	switch node_type := (node).(type) {
 	case *ast.ValueSpec:
 		// decl found
 		var var_decl *VarDecl
 
 		var_decl.Label = node_type.Names[0].Name
-		var_decl.Node = node
+		var_decl.Node = &node
 		var_decl.Token = tok
 
 		var_decl.Type = (*sm).NewVarType(node)
@@ -438,7 +438,7 @@ func (sm *ScopeManager) NewVarDecl(node *ast.Node, tok token.Token) (*ScopeManag
 					var var_decl *VarDecl
 
 					var_decl.Label = expr_ident.Name
-					var_decl.Node = node
+					var_decl.Node = &node
 					var_decl.Type = (*sm).NewVarType(node)
 					var_decl.Token = token.DEFINE
 
@@ -508,12 +508,12 @@ type VarType struct {
 // - *ast.AssignStmt
 // - *ast.ValueSpec
 // - *ast.FieldList
-func (sm *ScopeManager) NewVarType(node *ast.Node) VarType {
+func (sm *ScopeManager) NewVarType(node ast.Node) VarType {
 
 	var var_type VarType
 	var_type.Data = make([]string, 0)
 
-	switch node_type := (*node).(type) {
+	switch node_type := (node).(type) {
 
 	// Define (:=) assignment
 	case *ast.AssignStmt:
@@ -731,7 +731,7 @@ func ExtractExpr(current_sel_expr ast.Expr) []string {
 }
 
 // Creates a new Scope and adds it to ScopeMap
-func (sm *ScopeManager) NewScope(node *ast.Node, scope_type ScopeType) *ScopeManager {
+func (sm *ScopeManager) NewScope(node ast.Node, scope_type ScopeType) *ScopeManager {
 	var scope Scope = *NewScope(node, scope_type)
 
 	// add scope to map
@@ -840,15 +840,15 @@ type Scope struct {
 }
 
 // Returns a pointer to a Scope.
-func NewScope(node *ast.Node, scope_type ScopeType) *Scope {
+func NewScope(node ast.Node, scope_type ScopeType) *Scope {
 	var scope Scope
 
-	scope.Node = node
+	scope.Node = &node
 	scope.Type = scope_type
 	scope.Decls = NewScopeDeclMap()
 
 	// set ID
-	scope.ID = NewScopeID(scope.Node, scope.Type)
+	scope.ID = NewScopeID(*scope.Node, scope.Type)
 
 	return &scope
 }
@@ -889,13 +889,13 @@ type ID string
 
 // Returns IDTrace of Scope IDs and their index in the slice.
 // IDTrace concatenation in the form: index, ID: ...
-func NewScopeID(node *ast.Node, scope_type ScopeType) ID {
-	return ID(fmt.Sprintf("{SCOPE, %s: %v - %v}", scope_type, (*node).Pos(), (*node).End()))
+func NewScopeID(node ast.Node, scope_type ScopeType) ID {
+	return ID(fmt.Sprintf("{SCOPE, %s: %v - %v}", scope_type, (node).Pos(), (node).End()))
 }
 
 // may be obselete
-func NewVarID(node *ast.Node, var_context VarContext) ID {
-	return ID(fmt.Sprintf("{VAR, %s: %v - %v}", var_context, (*node).Pos(), (*node).End()))
+func NewVarID(node ast.Node, var_context VarContext) ID {
+	return ID(fmt.Sprintf("{VAR, %s: %v - %v}", var_context, (node).Pos(), (node).End()))
 }
 
 // Returns ID consisting of
