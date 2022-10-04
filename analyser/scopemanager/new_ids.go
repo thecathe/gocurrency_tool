@@ -6,7 +6,6 @@ import (
 )
 
 // ID
-//
 type ID string
 
 // Returns IDTrace of Scope IDs and their index in the slice.
@@ -20,16 +19,6 @@ func NewVarID(node ast.Node, var_context VarContext) ID {
 	return ID(fmt.Sprintf("{VAR, %s: %v - %v}", var_context, (node).Pos(), (node).End()))
 }
 
-// Returns ID consisting of
-func (sm *ScopeManager) NewVarDeclID(decl *VarDecl) ID {
-	if scope_id, ok := (*sm).PeekID(); ok {
-		return NewVarDeclID(decl.Label, scope_id)
-	}
-	// fail
-	return ID("Fail: VarDeclID")
-}
-
-//
 func NewVarDeclID(label string, scope_id ID) ID {
 	return ID(fmt.Sprintf("{DECL, %s: %s", label, scope_id))
 }

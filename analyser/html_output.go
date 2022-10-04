@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"github.com/thecathe/gocurrency_tool/analyser/log"
 )
 
 const (
@@ -57,12 +58,12 @@ func GenerateProjectCounter(project_counter Counter) Counter {
 
 func HtmlOutputCounters(package_counters []*PackageCounter, commit string, project_name string, index_data *IndexFileData, path_to_dir string) Counter {
 
-	GeneralLog("%s: Entering HTML output stage.\n", project_name)
+	log.GeneralLog("%s: Entering HTML output stage.\n", project_name)
 
 	var html_path = GenerateHTMLPath()
 
 	if _, err := os.Stat(html_path); os.IsNotExist(err) && err != nil {
-		PanicLog(err, "Html, OutputCounters: HTML output dir \"%s\" does not exist. Entering panic\n", html_path)
+		log.PanicLog(err, "Html, OutputCounters: HTML output dir \"%s\" does not exist. Entering panic\n", html_path)
 	}
 
 	var file_name = ProjectName(project_name) + ".html"
@@ -73,7 +74,7 @@ func HtmlOutputCounters(package_counters []*PackageCounter, commit string, proje
 
 	f, err := os.Create(file_path)
 	if err != nil {
-		PanicLog(err, "Html, OutputCounters: Unable to create file \"%s\", entering panic...\n", file_path)
+		log.PanicLog(err, "Html, OutputCounters: Unable to create file \"%s\", entering panic...\n", file_path)
 	}
 
 	//project_counter.Line_number = ReadNumberOfLines(GenerateListFiles(path_to_dir))
@@ -134,7 +135,7 @@ func HtmlOutputCounters(package_counters []*PackageCounter, commit string, proje
 		project_counter.Receive_chan_count += counter.Counter.Receive_chan_count
 		project_counter.Param_chan_count += counter.Counter.Param_chan_count
 	}
-	DebugLog("Html, OutputCounters: Finished %d package counters\n", len(package_counters))
+	log.DebugLog("Html, OutputCounters: Finished %d package counters\n", len(package_counters))
 	project_counter.Num_of_packages_with_features = page.Num_of_packages_with_features
 
 	if index_data != nil {
@@ -152,15 +153,15 @@ func HtmlOutputCounters(package_counters []*PackageCounter, commit string, proje
 
 	page.Project_counter = GenerateProjectCounter(project_counter)
 	if _, err = os.Stat("html\\html_layout.html"); err != nil && os.IsNotExist(err) {
-		FailureLog("Html, OutputCounters: Unable to locate \"html_layout.html\"...\n\terror: %v\n", err)
+		log.FailureLog("Html, OutputCounters: Unable to locate \"html_layout.html\"...\n\terror: %v\n", err)
 	}
 	tmpl := template.Must(template.ParseFiles("html\\html_layout.html"))
 	err = tmpl.Execute(f, page) // write the data to the file
 	if err != nil {
-		FailureLog("Html, OutputCounters: Error occured when writing html results...\n\terror: %v\n", err)
+		log.FailureLog("Html, OutputCounters: Error occured when writing html results...\n\terror: %v\n", err)
 	}
 
-	GeneralLog("%s: Finished HTML output stage.\n\n", project_name)
+	log.GeneralLog("%s: Finished HTML output stage.\n\n", project_name)
 	return project_counter
 }
 
@@ -172,7 +173,7 @@ func GenerateListFiles(path_to_dir string) string {
 	err := git_cmd.Run()
 
 	if err != nil {
-		WarningLog("Html, GLF: Error while running git ls-files: %v\n", err)
+		log.WarningLog("Html, GLF: Error while running git ls-files: %v\n", err)
 	}
 	filenames := ""
 	for _, name := range strings.Split(git_out.String(), "\n") {

@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"golang.org/x/tools/go/packages"
+	"github.com/thecathe/gocurrency_tool/analyser/log"
 )
 
 // parse a particular dir
@@ -60,12 +61,13 @@ func ParseDir(proj_name string, path_to_dir string, path_to_main_dir string) Pac
 			var f_writer bytes.Buffer
 			ast.Fprint(&f_writer, fileSet, f, ast.NotNilFilter)
 			file.WriteString(f_writer.String())
+			log.DebugLog("Parse, Dir: Test, AST written to file Successfully\n")
 		} else {
-			FailureLog("Parse, Dir: Test, AST Print: Error...\n\t%v\n", err)
+			log.FailureLog("Parse, Dir: Test, AST Print: Error...\n\t%v\n", err)
 		}
 	}
 	if err != nil {
-		WarningLog("ParseDir: An error was found in package %s...\n\terror: %v\n", filepath.Base(path_to_dir), err)
+		log.WarningLog("ParseDir: An error was found in package %s...\n\terror: %v\n", filepath.Base(path_to_dir), err)
 	}
 
 	if len(f) == 0 {
@@ -78,13 +80,13 @@ func ParseDir(proj_name string, path_to_dir string, path_to_main_dir string) Pac
 		counter.Counter.Package_name = strings.TrimPrefix(strings.TrimPrefix(path_to_dir, path_to_main_dir)+"/"+pack_name, "/")
 		counter.Counter.Package_path = path_to_dir
 		// Analyse each file
-		GeneralLog("Parser, Dir: Spawning Goroutine to analyse AST of each file: %d\n", len(pack.Files)-1)
+		log.GeneralLog("Parser, Dir: Spawning Goroutine to analyse AST of each file: %d\n", len(pack.Files)-1)
 		for name, file := range pack.Files {
 			filename := strings.TrimPrefix(strings.TrimPrefix(path_to_dir, path_to_main_dir)+"/"+filepath.Base(name), "/")
 			// results sent accross package_counter_chan
 
 			// for testing
-			DebugLog("Parse, Dir: Spawning Goroutine: %s\n", filename)
+			log.DebugLog("Parse, Dir: Spawning Goroutine: %s\n", filename)
 			if filename == "tests/async-communication.go" {
 				go AnalyseAst(fileSet, pack_name, filename, file, package_counter_chan, name) // launch a goroutine for each file
 			}
@@ -130,7 +132,7 @@ func ParseDir(proj_name string, path_to_dir string, path_to_main_dir string) Pac
 
 		}
 
-		GeneralLog("Parser, Dir: Retrieved AST analysis from all Goroutines\n")
+		log.GeneralLog("Parser, Dir: Retrieved AST analysis from all Goroutines\n")
 
 	}
 
@@ -139,7 +141,7 @@ func ParseDir(proj_name string, path_to_dir string, path_to_main_dir string) Pac
 
 func ParseConcurrencyPrimitives(path_to_dir string, counter Counter) Counter {
 	package_names := []string{}
-	DebugLog("Parser, PCP: %s\n", path_to_dir)
+	log.DebugLog("Parser, PCP: %s\n", path_to_dir)
 
 	walk_err := filepath.Walk(path_to_dir, func(path string, file os.FileInfo, err error) error {
 		if file.IsDir() {
@@ -152,10 +154,10 @@ func ParseConcurrencyPrimitives(path_to_dir string, counter Counter) Counter {
 		}
 		return nil
 	})
-	GeneralLog("Parser, PCP: Found %d packages.\n", len(package_names))
+	log.GeneralLog("Parser, PCP: Found %d packages.\n", len(package_names))
 
 	if walk_err != nil {
-		FailureLog("Parser, PCP: Error occured during file walk...\n\terror: %v\n", walk_err)
+		log.FailureLog("Parser, PCP: Error occured during file walk...\n\terror: %v\n", walk_err)
 	}
 
 	var ast_map map[string]*packages.Package = make(map[string]*packages.Package)
@@ -167,8 +169,8 @@ func ParseConcurrencyPrimitives(path_to_dir string, counter Counter) Counter {
 	loaded_packages, err := packages.Load(cfg, package_names...)
 
 	if err != nil {
-		FailureLog("Parser, PCP: Could not load: %s\n\terror: %v\n", path_to_dir, err)
-		GeneralLog("Parser, PCP: Attempting to fix project, to load packages.\n")
+		log.FailureLog("Parser, PCP: Could not load: %s\n\terror: %v\n", path_to_dir, err)
+		log.GeneralLog("Parser, PCP: Attempting to fix project, to load packages.\n")
 
 		// THIS WILL COLLECT ALL MISSING PACKAGES
 		init_cmd := exec.Command("go", "mod", "init")
@@ -180,7 +182,7 @@ func ParseConcurrencyPrimitives(path_to_dir string, counter Counter) Counter {
 		init_err := init_cmd.Run()
 
 		if init_err != nil {
-			VerboseLog("Parser, PCP: Attempted to run \"%v\" and it failed:\n\tpath: %s\n\terror: %v\n\tstdout: %v\n\tstderr:\n%v\n", init_cmd.Args, init_cmd.Dir, init_err, init_cmd.Stdout, init_cmd.Stderr)
+			log.VerboseLog("Parser, PCP: Attempted to run \"%v\" and it failed:\n\tpath: %s\n\terror: %v\n\tstdout: %v\n\tstderr:\n%v\n", init_cmd.Args, init_cmd.Dir, init_err, init_cmd.Stdout, init_cmd.Stderr)
 			// guess module name
 			init_cmd = exec.Command("go", "mod", "init", ProjectURL(filepath.Base(path_to_dir)))
 			init_cmd.Dir = path_to_dir
@@ -191,13 +193,13 @@ func ParseConcurrencyPrimitives(path_to_dir string, counter Counter) Counter {
 			init_err = init_cmd.Run()
 
 			if init_err != nil {
-				FailureLog("Parser, PCP: Attempted to run \"%v\" and it failed:\n\tpath: %s\n\terror: %v\nThis could be an issue in the project itself or packages required, enable debug log to see the full error.\n", init_cmd.Args, init_cmd.Dir)
-				DebugLog("Parser, PCP: Attempted to run \"%v\" and it failed:\n\tpath: %s\n\terror: %v\n\tstdout: %v\n\tstderr:\n%v\n", init_cmd.Args, init_cmd.Dir, init_err, init_cmd.Stdout, init_cmd.Stderr)
+				log.FailureLog("Parser, PCP: Attempted to run \"%v\" and it failed:\n\tpath: %s\n\terror: %v\nThis could be an issue in the project itself or packages required, enable debug log to see the full error.\n", init_cmd.Args, init_cmd.Dir)
+				log.DebugLog("Parser, PCP: Attempted to run \"%v\" and it failed:\n\tpath: %s\n\terror: %v\n\tstdout: %v\n\tstderr:\n%v\n", init_cmd.Args, init_cmd.Dir, init_err, init_cmd.Stdout, init_cmd.Stderr)
 			} else {
-				GeneralLog("Parser, PCP: Successfully ran \"%v\"\n\touput:\n%v\n", init_cmd.Args, init_cmd.Stdout)
+				log.GeneralLog("Parser, PCP: Successfully ran \"%v\"\n\touput:\n%v\n", init_cmd.Args, init_cmd.Stdout)
 			}
 		} else {
-			GeneralLog("Parser, PCP: Successfully ran \"%v\"\n\touput:\n%v\n", init_cmd.Args, init_cmd.Stdout)
+			log.GeneralLog("Parser, PCP: Successfully ran \"%v\"\n\touput:\n%v\n", init_cmd.Args, init_cmd.Stdout)
 		}
 
 		tidy_cmd := exec.Command("go", "mod", "tidy")
@@ -209,15 +211,15 @@ func ParseConcurrencyPrimitives(path_to_dir string, counter Counter) Counter {
 		tidy_err := tidy_cmd.Run()
 
 		if tidy_err != nil {
-			FailureLog("Parser, PCP: Attempted to run \"%v\" and it failed:\n\tpath: %s\n\terror: \nThis could be an issue in the packages required, enable debug log to see the full error.\n", tidy_cmd.Args, tidy_cmd.Dir)
-			DebugLog("Parser, PCP: Attempted to run \"%v\" and it failed:\n\tpath: %s\n\terror: %v\n\tstdout: %v\n\tstderr:\n%v\n", tidy_cmd.Args, tidy_cmd.Dir, tidy_err, tidy_cmd.Stdout, tidy_cmd.Stderr)
+			log.FailureLog("Parser, PCP: Attempted to run \"%v\" and it failed:\n\tpath: %s\n\terror: \nThis could be an issue in the packages required, enable debug log to see the full error.\n", tidy_cmd.Args, tidy_cmd.Dir)
+			log.DebugLog("Parser, PCP: Attempted to run \"%v\" and it failed:\n\tpath: %s\n\terror: %v\n\tstdout: %v\n\tstderr:\n%v\n", tidy_cmd.Args, tidy_cmd.Dir, tidy_err, tidy_cmd.Stdout, tidy_cmd.Stderr)
 		} else {
-			GeneralLog("Parser, PCP: Successfully ran \"%v\"\n\touput:\n%v\n", tidy_cmd.Args, tidy_cmd.Stdout)
+			log.GeneralLog("Parser, PCP: Successfully ran \"%v\"\n\touput:\n%v\n", tidy_cmd.Args, tidy_cmd.Stdout)
 			loaded_packages, err = packages.Load(cfg, package_names...)
 			if err != nil {
-				FailureLog("Parser, PCP: Load packages still failed:\n\tpath: %s\n\terror: %v\n\n", path_to_dir, err)
+				log.FailureLog("Parser, PCP: Load packages still failed:\n\tpath: %s\n\terror: %v\n\n", path_to_dir, err)
 			} else {
-				GeneralLog("Parser, PCP: Load packages recovered.\n")
+				log.GeneralLog("Parser, PCP: Load packages recovered.\n")
 			}
 		}
 	}
@@ -226,11 +228,11 @@ func ParseConcurrencyPrimitives(path_to_dir string, counter Counter) Counter {
 		ast_map[pack.Name] = pack
 	}
 
-	DebugLog("Parser, PCP: Analysing %d packages.", len(ast_map))
+	log.DebugLog("Parser, PCP: Analysing %d packages.", len(ast_map))
 	for pack_name, node := range ast_map {
 		// Analyse each package
 
-		VerboseLog("Parser, PCP: %s, %d files.\n", pack_name, len(node.Syntax))
+		log.VerboseLog("Parser, PCP: %s, %d files.\n", pack_name, len(node.Syntax))
 
 		var n_s_file_decl_count int = 0
 		var n_s_file_func_decl_count int = 0
@@ -250,11 +252,11 @@ func ParseConcurrencyPrimitives(path_to_dir string, counter Counter) Counter {
 				n_s_file_decl_count++
 			}
 		}
-		VerboseLog("Parser, PCP: Finished %s, %d files.\n\tTotal Decl: %d\n\tFunction Decl: %d\n", pack_name, len(node.Syntax), n_s_file_decl_count, n_s_file_func_decl_count)
+		log.VerboseLog("Parser, PCP: Finished %s, %d files.\n\tTotal Decl: %d\n\tFunction Decl: %d\n", pack_name, len(node.Syntax), n_s_file_decl_count, n_s_file_func_decl_count)
 
 		// fmt.Print("\n\n\n\n")
 	}
 
-	DebugLog("Parser, PCP: Finished %s, %d packages\n\n\n", path_to_dir, len(ast_map))
+	log.DebugLog("Parser, PCP: Finished %s, %d packages\n\n\n", path_to_dir, len(ast_map))
 	return counter
 }

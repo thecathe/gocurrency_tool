@@ -949,10 +949,10 @@
    948  .  .  .  .  }
    949  .  .  .  .  Scope: *ast.Scope {
    950  .  .  .  .  .  Objects: map[string]*ast.Object (len = 4) {
-   951  .  .  .  .  .  .  "run": *(obj @ 130)
-   952  .  .  .  .  .  .  "add_bound": *(obj @ 45)
-   953  .  .  .  .  .  .  "decl_wg": *(obj @ 74)
-   954  .  .  .  .  .  .  "decl_mu": *(obj @ 101)
+   951  .  .  .  .  .  .  "add_bound": *(obj @ 45)
+   952  .  .  .  .  .  .  "decl_wg": *(obj @ 74)
+   953  .  .  .  .  .  .  "decl_mu": *(obj @ 101)
+   954  .  .  .  .  .  .  "run": *(obj @ 130)
    955  .  .  .  .  .  }
    956  .  .  .  .  }
    957  .  .  .  .  Imports: []*ast.ImportSpec (len = 2) {
@@ -3530,10 +3530,10 @@
   3529  .  .  .  .  }
   3530  .  .  .  .  Scope: *ast.Scope {
   3531  .  .  .  .  .  Objects: map[string]*ast.Object (len = 4) {
-  3532  .  .  .  .  .  .  "async_job_maker_count": *(obj @ 1024)
-  3533  .  .  .  .  .  .  "AsyncCommunication": *(obj @ 1051)
-  3534  .  .  .  .  .  .  "AsyncWorker": *(obj @ 1415)
-  3535  .  .  .  .  .  .  "AsyncJobMaker": *(obj @ 1951)
+  3532  .  .  .  .  .  .  "AsyncCommunication": *(obj @ 1051)
+  3533  .  .  .  .  .  .  "AsyncWorker": *(obj @ 1415)
+  3534  .  .  .  .  .  .  "AsyncJobMaker": *(obj @ 1951)
+  3535  .  .  .  .  .  .  "async_job_maker_count": *(obj @ 1024)
   3536  .  .  .  .  .  }
   3537  .  .  .  .  }
   3538  .  .  .  .  Imports: []*ast.ImportSpec (len = 3) {
@@ -6381,10 +6381,10 @@
   6380  .  .  .  .  }
   6381  .  .  .  .  Scope: *ast.Scope {
   6382  .  .  .  .  .  Objects: map[string]*ast.Object (len = 4) {
-  6383  .  .  .  .  .  .  "SyncJobMaker": *(obj @ 4641)
-  6384  .  .  .  .  .  .  "sync_job_maker_count": *(obj @ 3795)
-  6385  .  .  .  .  .  .  "SyncCommunication": *(obj @ 3822)
-  6386  .  .  .  .  .  .  "SyncWorker": *(obj @ 4245)
+  6383  .  .  .  .  .  .  "SyncCommunication": *(obj @ 3822)
+  6384  .  .  .  .  .  .  "SyncWorker": *(obj @ 4245)
+  6385  .  .  .  .  .  .  "SyncJobMaker": *(obj @ 4641)
+  6386  .  .  .  .  .  .  "sync_job_maker_count": *(obj @ 3795)
   6387  .  .  .  .  .  }
   6388  .  .  .  .  }
   6389  .  .  .  .  Imports: []*ast.ImportSpec (len = 3) {

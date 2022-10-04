@@ -1,4 +1,4 @@
-package main
+package log
 
 import (
 	"log"
@@ -14,6 +14,10 @@ var enabled_verbose bool = false
 var total_logs int = 0
 
 var _log = log.New(os.Stdout, "", log.Ltime|log.Lmsgprefix)
+
+func Total() int {
+	return total_logs
+}
 
 func SetLoggers(_general bool, _debug bool, _warning bool, _failure bool) {
 	enabled_general = _general

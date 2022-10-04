@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"github.com/thecathe/gocurrency_tool/analyser/log"
 )
 
 const csv_result_dir = "_results\\csv"
@@ -15,12 +16,12 @@ const csv_result_dir = "_results\\csv"
 func CsvOutputCounters(_project_name string, package_counters []*PackageCounter, path_to_dir string, project_counter Counter) {
 
 	project_name := _project_name
-	GeneralLog("%s: Entering CSV output stage.\n", project_name)
+	log.GeneralLog("%s: Entering CSV output stage.\n", project_name)
 
 	var csv_path = GenerateCSVPath()
 
 	if _, err := os.Stat(csv_path); os.IsNotExist(err) && err != nil {
-		PanicLog(err, "Csv, OutputCounters: CSV output dir \"%s\" does not exist. Entering panic\n", csv_path)
+		log.PanicLog(err, "Csv, OutputCounters: CSV output dir \"%s\" does not exist. Entering panic\n", csv_path)
 	}
 
 	// adjsut for separate result files
@@ -33,9 +34,9 @@ func CsvOutputCounters(_project_name string, package_counters []*PackageCounter,
 	f, err := os.Create(file_path)
 	if err != nil {
 		if os.IsExist(err) {
-			ExitLog(0, "Csv, OutputCounters: Results already exist, either enable overwrite or move the current results.\n")
+			log.ExitLog(0, "Csv, OutputCounters: Results already exist, either enable overwrite or move the current results.\n")
 		} else {
-			PanicLog(err, "Csv, OutputCounters: Unable to create file \"%s\", entering panic...\n", file_path)
+			log.PanicLog(err, "Csv, OutputCounters: Unable to create file \"%s\", entering panic...\n", file_path)
 		}
 	}
 	var num_of_packages int = 0
@@ -43,7 +44,7 @@ func CsvOutputCounters(_project_name string, package_counters []*PackageCounter,
 	num_featured_files := 0
 	num_files := 0
 	// num_featured_packages := 0
-	DebugLog("Csv, OutputCounters: Detecting how many packages in %d features...\n", len(package_counters))
+	log.DebugLog("Csv, OutputCounters: Detecting how many packages in %d features...\n", len(package_counters))
 	for _, counter := range package_counters {
 		if len(counter.File_counters) > 0 {
 			num_of_packages++
@@ -59,17 +60,17 @@ func CsvOutputCounters(_project_name string, package_counters []*PackageCounter,
 		f.WriteString(fmt.Sprintf("files num, %d, %d\n", num_featured_files, num_files))
 		f.WriteString(fmt.Sprintf("Line num per featured file, , %.d\n", readNumberOfLinesPerFeaturedFile(package_counters)))
 
-		VerboseLog("Line Num: %d\n", project_counter.Line_number)
-		VerboseLog("Packages Num: %d, %d\n", project_counter.Num_of_packages_with_features, num_of_packages)
-		VerboseLog("Files Num: %d, %d\n", num_featured_files, num_files)
-		VerboseLog("Average Line Num: %.d\n", readNumberOfLinesPerFeaturedFile(package_counters))
+		log.VerboseLog("Line Num: %d\n", project_counter.Line_number)
+		log.VerboseLog("Packages Num: %d, %d\n", project_counter.Num_of_packages_with_features, num_of_packages)
+		log.VerboseLog("Files Num: %d, %d\n", num_featured_files, num_files)
+		log.VerboseLog("Average Line Num: %.d\n", readNumberOfLinesPerFeaturedFile(package_counters))
 	} else {
-		WarningLog("Csv, OutputCounters: Package counters was empty...\n\tpackage counter length: %d\n", len(package_counters))
+		log.WarningLog("Csv, OutputCounters: Package counters was empty...\n\tpackage counter length: %d\n", len(package_counters))
 	}
 
 	if separate_results {
 		f.Close()
-		GeneralLog("Csv, OutputCounters: Results file \"%s\" is finished.\n", file_name)
+		log.GeneralLog("Csv, OutputCounters: Results file \"%s\" is finished.\n", file_name)
 		project_name = _project_name + "_package_lines"
 		file_name = ProjectName(project_name) + ".csv"
 
@@ -77,15 +78,15 @@ func CsvOutputCounters(_project_name string, package_counters []*PackageCounter,
 		f, err = os.Create(file_path)
 		if err != nil {
 			if os.IsExist(err) {
-				ExitLog(0, "Csv, OutputCounters: Results already exist, either enable overwrite or move the current results.\n")
+				log.ExitLog(0, "Csv, OutputCounters: Results already exist, either enable overwrite or move the current results.\n")
 			} else {
-				PanicLog(err, "Csv, OutputCounters: Unable to create file \"%s\", entering panic...\n", file_path)
+				log.PanicLog(err, "Csv, OutputCounters: Unable to create file \"%s\", entering panic...\n", file_path)
 			}
 		}
 		f.WriteString("Package Name, Number of Lines\n")
 	}
 
-	DebugLog("Csv, OutputCounters: ReadingNumberOfLines in %d packages.\n", len(package_counters))
+	log.DebugLog("Csv, OutputCounters: ReadingNumberOfLines in %d packages.\n", len(package_counters))
 	for _, counter := range package_counters {
 		if len(counter.File_counters) > 0 {
 			number_of_lines := ReadNumberOfLines(GeneratePackageListFiles(counter.Counter.Package_path))
@@ -95,7 +96,7 @@ func CsvOutputCounters(_project_name string, package_counters []*PackageCounter,
 
 	if separate_results {
 		f.Close()
-		GeneralLog("Csv, OutputCounters: Results file \"%s\" is finished.\n", file_name)
+		log.GeneralLog("Csv, OutputCounters: Results file \"%s\" is finished.\n", file_name)
 		project_name = _project_name + "_file_data"
 		file_name = ProjectName(project_name) + ".csv"
 
@@ -103,16 +104,16 @@ func CsvOutputCounters(_project_name string, package_counters []*PackageCounter,
 		f, err = os.Create(file_path)
 		if err != nil {
 			if os.IsExist(err) {
-				ExitLog(0, "Csv, OutputCounters: Results already exist, either enable overwrite or move the current results.\n")
+				log.ExitLog(0, "Csv, OutputCounters: Results already exist, either enable overwrite or move the current results.\n")
 			} else {
-				PanicLog(err, "Csv, OutputCounters: Unable to create file \"%s\", entering panic...\n", file_path)
+				log.PanicLog(err, "Csv, OutputCounters: Unable to create file \"%s\", entering panic...\n", file_path)
 			}
 		}
 	}
 
 	f.WriteString("Filename, Line #, Feature #, Concurrent Type, Additional Feature Info, Package\n")
 
-	DebugLog("Csv, OutputCounters: Writing CSV file.\n")
+	log.DebugLog("Csv, OutputCounters: Writing CSV file.\n")
 	for _, feature := range project_counter.Features {
 		f.WriteString(fmt.Sprintf("%s,%v,%v,%v,%v,%v\n",
 			strings.ReplaceAll(feature.F_filename, "/", "\\"),
@@ -122,9 +123,9 @@ func CsvOutputCounters(_project_name string, package_counters []*PackageCounter,
 			feature.F_number,
 			feature.F_package_name))
 	}
-	GeneralLog("Csv, OutputCounters: Results file \"%s\" is finished.\n", file_name)
+	log.GeneralLog("Csv, OutputCounters: Results file \"%s\" is finished.\n", file_name)
 	f.Close()
-	GeneralLog("Csv, OutputCounters: Finished %s\n\n", project_name)
+	log.GeneralLog("Csv, OutputCounters: Finished %s\n\n", project_name)
 }
 
 func readNumberOfLinesPerFeaturedFile(package_counters []*PackageCounter) int {
@@ -158,7 +159,7 @@ func readNumberOfLinesPerFeaturedFile(package_counters []*PackageCounter) int {
 	wc_cmd.Stdout = &wc_out
 	err3 := wc_cmd.Run()
 	if err3 != nil {
-		FailureLog("Csv, RNoLpFF: Error while running wc: %v\n", err3)
+		log.FailureLog("Csv, RNoLpFF: Error while running wc: %v\n", err3)
 	}
 	defer os.Remove(temp_go)
 	defer f.Close()

@@ -4,6 +4,8 @@ import (
 	"go/ast"
 	"go/token"
 	"strconv"
+
+	"github.com/thecathe/gocurrency_tool/analyser/log"
 	"github.com/thecathe/gocurrency_tool/analyser/scopemanager"
 )
 
@@ -11,202 +13,33 @@ var scope_manager *scopemanager.ScopeManager
 
 // called on every file
 func AnalyseAst(fileset *token.FileSet, package_name string, filename string, node ast.Node, channel chan Counter, name string) {
+	log.GeneralLog("Analyser, %s Spawned...\n", filename)
 
 	var counter Counter = Counter{Go_count: 0, Send_count: 0, Rcv_count: 0, Chan_count: 0, filename: name}
 
 	if _scope_manager, ok := scopemanager.NewScopeManager(filename, fileset); ok == nil {
 		scope_manager = _scope_manager
-		DebugLog("Analyser, %s: Scope Manager Created.\n", filename)
+		log.DebugLog("Analyser, %s: Scope Manager Created.\n", filename)
 	} else {
-		FailureLog("Analyser, %s: Scope Manager Creation Failed\n", filename)
+		log.FailureLog("Analyser, %s: Scope Manager Creation Failed\n", filename)
 		return
 	}
 
-	GeneralLog("Analyser, %s: Printing ScopeManager.Scopes...\n%s\n", filename, scope_manager.ScopeMap.ToString())
-
-	// go through file
-	switch file := node.(type) {
-	case *ast.File:
-		// for each file
-
-		if _scope_manager, _parse_type := scope_manager.ParseNode(node); _parse_type != scopemanager.PARSE_NONE {
-			scope_manager = _scope_manager
-			DebugLog("Analyser, %s: File Scope Successful.\n", filename)
-
-			// generate scope map
-			for _, file_decl := range file.Decls {
-				// go through each scope in file
-				if _scope_manager, _parse_type := scope_manager.ParseNode(file_decl); _parse_type  != scopemanager.PARSE_NONE {
-					scope_manager = _scope_manager
-					DebugLog("Analyser, %s: Global Scope Successful.\n", filename)
-					var node_visit_count int = 0
-
-					//
-					// start of each node inspect
-					//
-					ast.Inspect(file_decl, func(_decl ast.Node) bool {
-						node_visit_count++
-						// for every node in this scope
-						// give current node to manager
-						if _scope_manager, parse_type := scope_manager.ParseNode(_decl); parse_type != scopemanager.PARSE_NONE {
-							scope_manager = _scope_manager
-							DebugLog("Analyser, %s: Inspect: %d, Type %s Success.\n%s\n", filename, node_visit_count, parse_type)
-
-						} else {
-							scope_manager = _scope_manager
-
-							DebugLog("Analyser, %s: Inspect: %d, Type %s Failed.\n", filename, node_visit_count, parse_type)
-						}
-
-						return true
-					})
-					//
-					// end of each node insepct
-					//
-
-				} else {
-					FailureLog("Analyser, %s: Global Scope Unsuccessful: %s\n", filename, _parse_type)
-				}
-			}
-		} else {
-			FailureLog("Analyser, %s: File Scope Unsuccessful: %s\n", filename, _parse_type)
-		}
-
-		// // add scope
-		// if _scope_manager, scope_id, ok := scope_manager.NewScope(file, *scopemanager.SCOPE_TYPE_FILE); ok == nil {
-		// 	scope_manager = _scope_manager
-		// 	DebugLog("Analyser, %s: File Scope Successful.\n", filename)
-
-		// 	// generate scope map
-		// 	for _, file_decl := range file.Decls {
-		// 		// for each global decl: func, const, var, import
-		// 		if _scope_manager, scope_id, ok := scope_manager.NewScope(file_decl); ok == nil {
-		// 			scope_manager = _scope_manager
-		// 			DebugLog("\nAnalyser, %s: Global Decl Scope Successful.\n", filename)
-		// 			var node_visit_count int = 0
-		// 			//
-		// 			// start of each node inspect
-		// 			//
-		// 			ast.Inspect(file_decl, func(_decl ast.Node) bool {
-		// 				node_visit_count++
-		// 				// for every node in this scope
-		// 				// give current node to manager
-		// 				if _scope_manager, parse_type, type_id, ok := scope_manager.ParseNode(_decl); ok == nil {
-		// 					scope_manager = _scope_manager
-
-		// 					var parse_type_string string = type_id
-		// 					switch parse_type {
-		// 					case *scopemanager.PARSE_NONE:
-		// 						// error occured
-		// 					case *scopemanager.PARSE_SCOPE:
-		// 						// scope found
-		// 						// parse_type_string = string(scope_manager.Scopes[ScopeID(type_id)].ID)
-		// 					case *scopemanager.PARSE_DECL:
-		// 						// decl found
-		// 					case *scopemanager.PARSE_ASSIGN:
-		// 						// assignment found
-		// 					}
-		// 					DebugLog("Analyser, %s: Inspect: %d, Type %s Success.\n%s\n", filename, node_visit_count, parse_type, parse_type_string)
-
-		// 				} else {
-		// 					scope_manager = _scope_manager
-
-		// 					DebugLog("Analyser, %s: Inspect: %d, Type %s Failed.\n", filename, node_visit_count, parse_type)
-		// 				}
-
-		// 				return true
-		// 			})
-		// 			//
-		// 			// end of each node insepct
-		// 			//
-		// 		} else {
-		// 			scope_manager = _scope_manager
-		// 			FailureLog("Analyser, %s: Decl Setup, NewScope Failed...\n\tID: %s\n", filename, scope_id)
-		// 			continue
-		// 		}
-		// 		// finished that global decl
-		// 		if _scope_manager, scope_id, ok := scope_manager.PopStack(); ok == nil {
-		// 			scope_manager = _scope_manager
-		// 		} else {
-		// 			scope_manager = _scope_manager
-		// 			FailureLog("Analyser, %s: Decl Pop, PopStack Failed...\n\tID: %s\n", filename, scope_id)
-		// 		}
-		// 	}
-
-		// } else {
-		// 	FailureLog("Analyser, %s: File Scope Unsuccessful.\n", filename)
-		// }
-
-		// if _scope_manager, scope_id, ok := scope_manager.NewScope(file); ok == nil {
-		// 	scope_manager = _scope_manager
-		// 	DebugLog("Analyser, %s: File Scope Successful.\n", filename)
-		// 	// generate scope map
-		// 	for _, file_decl := range file.Decls {
-		// 		// for each global decl: func, const, var, import
-		// 		if _scope_manager, scope_id, ok := scope_manager.NewScope(file_decl); ok == nil {
-		// 			scope_manager = _scope_manager
-		// 			DebugLog("\nAnalyser, %s: Global Decl Scope Successful.\n", filename)
-		// 			var node_visit_count int = 0
-		// 			//
-		// 			// start of each node inspect
-		// 			//
-		// 			ast.Inspect(file_decl, func(_decl ast.Node) bool {
-		// 				node_visit_count++
-		// 				// for every node in this scope
-		// 				// give current node to manager
-		// 				if _scope_manager, parse_type, type_id, ok := scope_manager.ParseNode(_decl); ok == nil {
-		// 					scope_manager = _scope_manager
-
-		// 					var parse_type_string string = type_id
-		// 					switch parse_type {
-		// 					case *scopemanager.PARSE_NONE:
-		// 						// error occured
-		// 					case *scopemanager.PARSE_SCOPE:
-		// 						// scope found
-		// 						// parse_type_string = string(scope_manager.Scopes[ScopeID(type_id)].ID)
-		// 					case *scopemanager.PARSE_DECL:
-		// 						// decl found
-		// 					case *scopemanager.PARSE_ASSIGN:
-		// 						// assignment found
-		// 					}
-		// 					DebugLog("Analyser, %s: Inspect: %d, Type %s Success.\n%s\n", filename, node_visit_count, parse_type, parse_type_string)
-
-		// 				} else {
-		// 					scope_manager = _scope_manager
-
-		// 					DebugLog("Analyser, %s: Inspect: %d, Type %s Failed.\n", filename, node_visit_count, parse_type)
-		// 				}
-
-		// 				return true
-		// 			})
-		// 			//
-		// 			// end of each node insepct
-		// 			//
-		// 		} else {
-		// 			scope_manager = _scope_manager
-		// 			FailureLog("Analyser, %s: Decl Setup, NewScope Failed...\n\tID: %s\n", filename, scope_id)
-		// 			continue
-		// 		}
-		// 		// finished that global decl
-		// 		if _scope_manager, scope_id, ok := scope_manager.PopStack(); ok == nil {
-		// 			scope_manager = _scope_manager
-		// 		} else {
-		// 			scope_manager = _scope_manager
-		// 			FailureLog("Analyser, %s: Decl Pop, PopStack Failed...\n\tID: %s\n", filename, scope_id)
-		// 		}
-		// 	}
-		// } else {
-		// 	scope_manager = _scope_manager
-		// 	FailureLog("Analyser, %s: File Setup, NewScope Failed...\n\tID: %s\n", filename, scope_id)
-		// }
-	}
+	log.GeneralLog("Analyser, %s: Printing ScopeManager.Scopes...\n%s\n", filename, scope_manager.ScopeMap.ToString())
 
 	var env []string = []string{}
 
-	// then analyse each node
+	// for each file
 	switch file := node.(type) {
 	case *ast.File:
+
+		// map out vars to scopes
+		runScopeManager(filename, file, node)
+
+		// add file accesible channels
 		addGlobalVarToEnv(file, &env)
+
+		// then analyse each node
 		for _, decl := range file.Decls {
 			fresh_env := env
 			ast.Inspect(decl, func(decl ast.Node) bool {
@@ -216,10 +49,64 @@ func AnalyseAst(fileset *token.FileSet, package_name string, filename string, no
 		}
 	}
 
-	GeneralLog("Analyser, %s: Finished Analysis.\n", filename)
+	log.GeneralLog("Analyser, %s: Finished Analysis.\n", filename)
 	setFeaturesNumber(&counter)
-	GeneralLog("Analyser, %s: Finished, Returning.\n", filename)
+	log.GeneralLog("Analyser, %s: Finished, Returning.\n", filename)
 	channel <- counter
+}
+
+func runScopeManager(filename string, file *ast.File, node ast.Node) {
+	log.GeneralLog("Analyser, %s: Running Scope Manager\n\n\n", filename)
+	if _scope_manager, _parse_type := scope_manager.ParseNode(node); _parse_type != scopemanager.PARSE_NONE {
+		scope_manager = _scope_manager
+		// log.DebugLog("Analyser, %s: %d : %s\n", filename, scope_manager.StackSize(), _parse_type)
+
+		// generate scope map
+		log.DebugLog("Analyser, %d File Decls.\n\n", len(file.Decls))
+		var total_node_visit_count int = 0
+		for _, file_decl := range file.Decls {
+			// go through each scope in file
+
+			log.DebugLog("Analyser, ast.Inspect... %v - %v\n", file_decl.Pos(), file_decl.End())
+			var node_visit_count int = scope_manager.StackSize() // match index
+			var relevant_node_visit_count int = node_visit_count
+			// start of each node inspect
+			ast.Inspect(file_decl, func(_decl ast.Node) bool {
+				if _decl == nil {
+					// fail or last
+					log.DebugLog("Analyser, ast.Inspect finished: %d ...\n", node_visit_count)
+				} else {
+					node_visit_count++
+					// for every node in this scope
+					// give current node to manager
+					if _scope_manager, parse_type := scope_manager.ParseNode(_decl); parse_type != scopemanager.PARSE_NONE {
+						scope_manager = _scope_manager
+						relevant_node_visit_count++
+						// log.DebugLog("Analyser, %d : %d : %s\n", node_visit_count, scope_manager.StackSize(), parse_type)
+					} else {
+						scope_manager = _scope_manager
+						// unmeasured token
+						// log.FailureLog("Analyser, %d : %d : %s @ %s - %s\n", node_visit_count, scope_manager.StackSize(), parse_type, _decl.Pos(), _decl.End())
+					}
+				}
+				return true
+			})
+			// end of each node insepct
+			total_node_visit_count += node_visit_count
+			log.DebugLog("Analyser, ast.Inspect: Finished %d / %d / %d.\n\n", relevant_node_visit_count, node_visit_count, total_node_visit_count)
+		}
+	} else {
+		log.FailureLog("Analyser, %s: File Scope Unsuccessful: %s\n\t%s\n", filename, _parse_type)
+	}
+
+	// check how many decls found
+	if decl_size := scope_manager.Decls.Size(); decl_size == 0 {
+		// failure
+		log.FailureLog("Analyser, %s: ScopeManager found %d Decls.\n", filename, decl_size)
+	} else {
+		// success
+		log.DebugLog("Analyser, %s: ScopeManager found %d Decls.\n", filename, decl_size)
+	}
 }
 
 func analyseNode(fileset *token.FileSet, package_name string, filename string, node ast.Node, counter *Counter, env *[]string) {
@@ -769,6 +656,7 @@ func analyseNode(fileset *token.FileSet, package_name string, filename string, n
 									lhs_obj := unary_expr.Obj
 									if lhs_obj.Kind == ast.Var {
 										// this is a variable assignment
+										log.DebugLog("Analyser, node: Var assignment")
 									}
 								}
 							}
@@ -1263,9 +1151,10 @@ func isConstant(node ast.Node) (int, bool) {
 	return value, isCons
 }
 
-func chanType() {
+// TODO
+// func chanType() {
 
-}
+// }
 
 func isChan(node interface{}, env *[]string) (bool, string) {
 
@@ -1336,7 +1225,7 @@ func addGlobalVarToEnv(file *ast.File, env *[]string) {
 										if len(call_expr.Args) > 0 {
 											// check if it is sync or async
 											if len(call_expr.Args) > 1 {
-
+												log.WarningLog("Analyser, addGlobalVarToEnv: call_expr.Args > 1")
 											}
 											switch call_expr.Args[0].(type) {
 											// if it is a channel

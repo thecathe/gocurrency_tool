@@ -43,3 +43,13 @@ type MapOfDecls map[ID]*VarDecl
 func NewMapOfDecls() *MapOfDecls {
 	return &MapOfDecls{}
 }
+
+func (decls *MapOfDecls) Size() int {
+	// count decls
+	var decl_count int = 0
+	for range *decls {
+		decl_count += 1
+	}
+
+	return decl_count
+}
