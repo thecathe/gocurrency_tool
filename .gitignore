@@ -5,3 +5,4 @@ error_output_repo.json
 projects.txt
 old_scope.go
 analyser/_test_ast/tests.txt
+analyser/_test_ast/async-communication.txt

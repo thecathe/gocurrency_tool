@@ -1,7 +1,6 @@
 package scopemanager
 
 import (
-	"fmt"
 	"go/ast"
 	"go/token"
 	"os"
@@ -111,6 +110,12 @@ func (sm *ScopeManager) ParseNode(node ast.Node) (*ScopeManager, ParseType) {
 		sm = (*sm).NewScope(node, SCOPE_TYPE_FILE)
 		return sm, PARSE_FILE
 
+	// Scope: Declaration
+	case *ast.DeclStmt:
+		log.DebugLog("Analyser; ParseNode, DeclStmt\n")
+		sm = (*sm).NewScope(node, SCOPE_TYPE_DECL)
+		return sm, PARSE_DECL
+
 	// Scope: GenDecl
 	case *ast.GenDecl:
 		// scope or vardecl, depends on outerscope
@@ -144,6 +149,18 @@ func (sm *ScopeManager) ParseNode(node ast.Node) (*ScopeManager, ParseType) {
 			case SCOPE_TYPE_FILE_IMPORT:
 				log.DebugLog("Analyser; ParseNode, GenDecl: Import.\n")
 				return sm, PARSE_FILE_IMPORT
+
+			// var decl
+			case SCOPE_TYPE_DECL:
+				log.DebugLog("Analyser; ParseNode, GenDecl: DeclStmt.\n")
+				// should happen once?
+				for _, _spec := range node_type.Specs {
+					switch spec := _spec.(type) {
+					case *ast.ValueSpec:
+						(*sm).NewVarDecl(spec, node_type.Tok)
+					}
+				}
+				return sm, PARSE_DECL
 
 			default:
 				log.DebugLog("Analyser; ParseNode, GenDecl Unknown outerscope: %s\n", outer_scope.Type)
@@ -270,33 +287,17 @@ func (sm *ScopeManager) ParseNode(node ast.Node) (*ScopeManager, ParseType) {
 			return sm, PARSE_FAIL_STACK_PEEK
 		}
 
-	// Var: Declaration
-	case *ast.DeclStmt:
-		log.DebugLog("Analyser; ParseNode, DeclStmt\n")
-
-		// TODO
-		switch _decl := node_type.Decl.(type) {
-		case *ast.GenDecl:
-			// should happen once?
-			for _, _spec := range _decl.Specs {
-				switch spec := _spec.(type) {
-				case *ast.ValueSpec:
-					(*sm).NewVarDecl(spec, _decl.Tok)
-				}
-			}
-		}
-
-		return sm, PARSE_DECL
-
 	// Var: VarDecl, global or scoped
 	case *ast.ValueSpec:
-		log.DebugLog("Analyser; ParseNode, ValueSpec\n")
+		// log.DebugLog("Analyser; ParseNode, ValueSpec\n")
 		// check outerscopes context
 		if outer_scopes, ok := (*sm).PeekX(2); ok {
 
 			// TODO
 			// var file_scope Scope = *outer_scopes[0]
 			// var Scope = *outer_scopes[1]
+
+			log.DebugLog("Analyser; ParseNode, ValueSpec: outer scopes:\n\t0: %s\n\t1: %s\n", outer_scopes[0].Type, outer_scopes[1].Type)
 
 			// if file > gendecl > node
 			if outer_scopes[0].Type == SCOPE_TYPE_FILE {
@@ -326,16 +327,11 @@ func (sm *ScopeManager) ParseNode(node ast.Node) (*ScopeManager, ParseType) {
 					return sm, PARSE_FILE_IMPORT
 				// not accounted for
 				default:
-					log.FailureLog("Analyser; ParseNode, ValueSpec\n")
+					log.FailureLog("Analyser; ParseNode, ValueSpec: unused\n")
 					return sm, PARSE_FAIL_VALUE_SPEC
 				}
-			} else {
-				// scoped decl
-				if _sm, ok := (*sm).NewVarDecl(node, token.VAR); ok {
-					sm = _sm
-				}
-				return sm, PARSE_DECL
 			}
+			return sm, PARSE_NONE
 		} else {
 			log.FailureLog("Analyser; ParseNode, StackPeek: Size %d\n", (*sm).StackSize())
 			return sm, PARSE_FAIL_STACK_PEEK
@@ -403,100 +399,6 @@ func (sm *ScopeManager) VarDeclAddValue(decl_id ID, expr ast.Expr, pos token.Pos
 	return sm
 }
 
-// Creates a new VarDecl and adds it the the MapOfVarDecl
-// Node should be of type *ast.ValueSpec or *ast.AssignStmt
-func (sm *ScopeManager) NewVarDecl(node ast.Node, tok token.Token) (*ScopeManager, bool) {
-
-	// declaration
-	var var_decl VarDecl
-	var_decl.Node = &node
-
-	switch node_type := (node).(type) {
-	case *ast.ValueSpec:
-
-		var_decl.Label = node_type.Names[0].Name
-		var_decl.Type = (*sm).NewVarType(node)
-		var_decl.Token = tok
-
-		// check for value
-		if node_type.Values != nil {
-			for _, value_expr := range node_type.Values {
-				// add to values
-				var_decl = *(var_decl).AddValue((*sm).NewVarValue(value_expr, node_type.Pos()))
-			}
-
-		}
-
-		// add to ScopeManager
-		(*sm.Decls)[(*sm).NewVarDeclID(&var_decl)] = &var_decl
-
-	case *ast.AssignStmt:
-		// variable assignment, find decl
-		switch node_type.Tok {
-		case token.DEFINE:
-			// check decl
-			// for each decl
-			for index, expr := range node_type.Lhs {
-				// ensure ident
-				switch expr_ident := expr.(type) {
-				case *ast.Ident:
-
-					var_decl.Label = expr_ident.Name
-					var_decl.Type = (*sm).NewVarType(node)
-					var_decl.Token = token.DEFINE
-
-					// add to values
-					var_decl = *(var_decl).AddValue((*sm).NewVarValue(node_type.Rhs[index], node_type.Pos()))
-
-					// add to ScopeManager
-					(*sm.Decls)[(*sm).NewVarDeclID(&var_decl)] = &var_decl
-				}
-			}
-		default:
-			// unnaccounted for
-			return sm, false
-		}
-	}
-
-	return sm, true
-}
-
-// Returns VarValue using ast.ValueSpec .Values[]ast.Expr and .Pos
-func (sm *ScopeManager) NewVarValue(expr ast.Expr, pos token.Pos) VarValue {
-	var value VarValue
-
-	value.Pos = pos
-	if scope_id, ok := (*sm).PeekID(); ok {
-		value.ScopeID = scope_id
-	}
-
-	switch value_expr := expr.(type) {
-	// simple value
-	case *ast.BasicLit:
-		value.Value = fmt.Sprintf("%v", value_expr.Value)
-	case *ast.Ident:
-		value.Value = fmt.Sprintf("%v", value_expr.Name)
-
-	// add as is
-	default:
-		var expr_str string
-		switch value_expr.(type) {
-		case *ast.CallExpr:
-			expr_str = "CallExpr"
-		case *ast.BinaryExpr:
-			expr_str = "BinaryExpr"
-		case *ast.UnaryExpr:
-			expr_str = "UnaryExpr"
-		default:
-			expr_str = "Other"
-		}
-		value.Value = fmt.Sprintf("%v", expr_str)
-
-	}
-
-	return value
-}
-
 // Returns ID consisting of
 func (sm *ScopeManager) NewVarDeclID(decl *VarDecl) ID {
 	if scope_id, ok := (*sm).PeekID(); ok {
@@ -504,58 +406,6 @@ func (sm *ScopeManager) NewVarDeclID(decl *VarDecl) ID {
 	}
 	// fail
 	return ID("Fail: VarDeclID")
-}
-
-// Returns []string containing selectorexpor x, sel of compositelit in each element
-// ast.Expr should be of type *ast.SelectorExpr
-func ExtractExpr(current_sel_expr ast.Expr) []string {
-
-	var sel_expr []string = make([]string, 0)
-	var loop bool = true
-	for loop {
-		// For recursion on X,
-		switch outer_sel_type := current_sel_expr.(type) {
-		// only loops whilst SelectorExpr
-		case *ast.SelectorExpr:
-			// still more to go, add sel to beginning of slice
-			sel_expr = append([]string{outer_sel_type.Sel.Name}, sel_expr...)
-
-			// extracting from x
-			switch inner_sel_type := outer_sel_type.X.(type) {
-
-			// Selector
-			case *ast.SelectorExpr:
-				// make x selector
-				current_sel_expr = inner_sel_type
-
-			// Ident
-			case *ast.Ident:
-				// add x to beginning
-				sel_expr = append([]string{inner_sel_type.Name}, sel_expr...)
-				// end loop
-				loop = false
-			}
-
-		default:
-			loop = false
-		}
-	}
-
-	return sel_expr
-}
-
-// Creates a new Scope and adds it to ScopeMap
-func (sm *ScopeManager) NewScope(node ast.Node, scope_type ScopeType) *ScopeManager {
-	var scope Scope = *NewScope(node, scope_type)
-
-	// add id to stack
-	sm = (*sm).Push(scope.ID)
-
-	// add scope to map
-	(*(*sm).ScopeMap)[scope.ID] = &scope
-
-	log.GeneralLog("Analyser; NewScope %d: %s\n\n", (*sm).StackSize(), scope.ID)
-	return sm
 }
 
 // Returns token.Pos of the Scope at the top of the Stack

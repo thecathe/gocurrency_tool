@@ -1,10 +1,5 @@
 package scopemanager
 
-import (
-	"go/token"
-)
-
-
 // GeneralVarType
 //
 type GeneralVarType string
@@ -18,13 +13,3 @@ const (
 	VAR_DATA_TYPE_SYNC_CHANNEL  GeneralVarType = "Sync. Channel"
 	VAR_DATA_FUNC_RET           GeneralVarType = "Function Return"
 )
-
-// VarValue
-//
-type VarValue struct {
-	Value   string
-	Pos     token.Pos
-	ScopeID ID
-}
-
-
