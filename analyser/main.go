@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
 	"github.com/thecathe/gocurrency_tool/analyser/log"
 )
 
@@ -147,7 +148,6 @@ var projects_path string = ".\\projects.txt"
 func main() {
 	// analyser.exe (projects_file_path, overwrite_results, separate_results, overwrite_repos, debug_log_enabled, warning_log_enabled, failure_log_enabled, dev, repo_capacity)
 
-
 	// ./analyser.exe test
 
 	// run with git bash in /analyser:
@@ -158,7 +158,7 @@ func main() {
 
 	// set the type of printouts: defaults
 	log.SetLoggers(general_log_enabled, debug_log_enabled, warning_log_enabled, failure_log_enabled)
-	log.GeneralLog("The program takes the following optional parameters, but also has defaults:\n\n\tprojects_file_path, str: path to input dir\n\n\toverwrite_results, bool: true false.\nPermission to delete anything inside the \"%s\" directory to output results.\n\n\tseparate_results, bool: true false.\nSeparates the CSV output into 3 files.\n\n\toverwrite_repos, bool:true false.\nPermission to delete anything inside the \"%s\" directory to clone repos.\n\n\tdebug_log_enabled, bool: true false\n\n\twarning_log_enabled, bool: true false\n\n\tfailure_log_enabled, bool: true false\n\n\tdev, str:\nspecial keyword \"dev\" will make the program run once, without deleting the repo.\n\n\tmax_repo_memory, int:\nThe program will run more than once, getting as far as it can while staying under the capacity in MB provided here. 0 Means uncapped. The total memory used is checked after each repo has been downloaded. Keeping repos like this will break most of the analysis features. Purely for manual debug/analysis only.\n\n\n\n", result_dir, clone_dir)
+	log.GeneralLog("\n\n\n\n\n\n\n\n\n\nThe program takes the following optional parameters, but also has defaults:\n\n\tprojects_file_path, str: path to input dir\n\n\toverwrite_results, bool: true false.\nPermission to delete anything inside the \"%s\" directory to output results.\n\n\tseparate_results, bool: true false.\nSeparates the CSV output into 3 files.\n\n\toverwrite_repos, bool:true false.\nPermission to delete anything inside the \"%s\" directory to clone repos.\n\n\tdebug_log_enabled, bool: true false\n\n\twarning_log_enabled, bool: true false\n\n\tfailure_log_enabled, bool: true false\n\n\tdev, str:\nspecial keyword \"dev\" will make the program run once, without deleting the repo.\n\n\tmax_repo_memory, int:\nThe program will run more than once, getting as far as it can while staying under the capacity in MB provided here. 0 Means uncapped. The total memory used is checked after each repo has been downloaded. Keeping repos like this will break most of the analysis features. Purely for manual debug/analysis only.\n\n\n\n", result_dir, clone_dir)
 	log.GeneralLog("Example git bash command:\n\ngo build && ./analyser.exe projects.txt true true true false true true dev 1000\n\nThis would run the program for all user/repo in \"projects.txt\", overwriting everything, splitting the CSV into separate files, hide debug logs.\n\n\n")
 	log.GeneralLog("Example git bash command for debugging/developing this program:\n\ngo build && ./gocurrency_tool.exe projects.txt true true true false true true dev 1000\n\nThis would run the program for the first project, overwriting everything, save repos with a capacity of ~1 GB splitting the CSV into separate files, and hides debug logs.\n\n\n")
 

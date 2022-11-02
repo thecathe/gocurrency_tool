@@ -6,3 +6,6 @@ projects.txt
 old_scope.go
 analyser/_test_ast/tests.txt
 analyser/_test_ast/async-communication.txt
+analyser/debug_output_logs/
+analyser/tok_feature_patterns.json
+analyser/tok_feature_patterns_template.json

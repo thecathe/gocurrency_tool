@@ -33,7 +33,7 @@ func (stack *StackOfIDs) PeekX(x int) (*StackOfIDs, bool) {
 
 // Returns the Scope ID at the given Index, from 0.
 func (stack *StackOfIDs) Get(index int) (ID, bool) {
-	if index >= (*stack).Size() {
+	if (*stack).Size() > index {
 		return (*stack)[index], true
 	}
 	return ID(""), false

@@ -68,7 +68,7 @@ func runScopeManager(filename string, file *ast.File, node ast.Node) {
 			// go through each scope in file
 
 			log.DebugLog("Analyser, ast.Inspect... %v - %v\n", file_decl.Pos(), file_decl.End())
-			var node_visit_count int = scope_manager.StackSize() // match index
+			var node_visit_count int = scope_manager.Stack.Size() // match index
 			var relevant_node_visit_count int = node_visit_count
 			// start of each node inspect
 			ast.Inspect(file_decl, func(_decl ast.Node) bool {

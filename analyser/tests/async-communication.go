@@ -9,6 +9,8 @@ import (
 const (
 	async_job_maker_count int = 10
 )
+const test_int int = 0
+const test_string string = "test\ttabbed char"
 
 func AsyncCommunication() {
 
@@ -16,6 +18,12 @@ func AsyncCommunication() {
 
 	var worker_contact chan chan int = make(chan chan int, async_job_maker_count)
 	var all_jobs_complete chan bool = make(chan bool, async_job_maker_count)
+
+	// comment above for loop
+	for i := test_int; i < 5; i++ {
+		special_chan := make(chan int, i)
+		close(special_chan)
+	}
 
 	var waitgroup_init sync.WaitGroup
 	var waitgroup_finish sync.WaitGroup

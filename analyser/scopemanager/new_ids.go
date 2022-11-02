@@ -22,3 +22,17 @@ func NewVarID(node ast.Node, var_context VarContext) ID {
 func NewVarDeclID(label string, scope_id ID) ID {
 	return ID(fmt.Sprintf("{DECL, %s: %s", label, scope_id))
 }
+
+type IDs []ID
+
+func NewIDs() *IDs {
+	var ids IDs = make([]ID, 0)
+	return &ids
+}
+
+func (_ids *IDs) Append(new_id ID) *IDs {
+	var new_ids IDs = make(IDs, len(*_ids)+1)
+	copy(new_ids, *_ids)
+	new_ids[len(*_ids)] = new_id
+	return &new_ids
+}

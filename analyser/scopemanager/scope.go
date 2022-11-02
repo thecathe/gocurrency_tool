@@ -33,10 +33,12 @@ const (
 
 // Scope
 type Scope struct {
-	ID    ID
-	Node  *ast.Node
-	Decls *ScopeDeclMap // not just declarations but assignments too
-	Type  ScopeType
+	ID          ID
+	Node        *ast.Node
+	Decls       map[ID][]string // not just declarations but assignments too
+	Type        ScopeType
+	ElevatedIDs *IDs // array of scope ids that elevates all their own decls
+	Elevate     bool // signifies if scope should have its decls/assignments elevated to outerscope
 }
 
 // Creates a new Scope and adds it to ScopeMap
@@ -49,7 +51,8 @@ func (sm *ScopeManager) NewScope(node ast.Node, scope_type ScopeType) *ScopeMana
 	// add scope to map
 	(*(*sm).ScopeMap)[scope.ID] = &scope
 
-	log.GeneralLog("Analyser; NewScope %d: %s\n\n", (*sm).StackSize(), scope.ID)
+	log.GeneralLog("Analyser; NewScope %d: %s\n\n", (*sm).Stack.Size(), scope.ID)
+
 	return sm
 }
 
@@ -59,12 +62,49 @@ func NewScope(node ast.Node, scope_type ScopeType) *Scope {
 
 	scope.Node = &node
 	scope.Type = scope_type
-	scope.Decls = NewScopeDeclMap()
+	scope.Decls = make(map[ID][]string, 0)
+	scope.ElevatedIDs = NewIDs()
+
+	// should be elevated?
+	switch scope_type {
+	case SCOPE_TYPE_PACKAGE:
+		scope.Elevate = true
+
+	case SCOPE_TYPE_PACKAGE_CONST:
+		scope.Elevate = true
+
+	case SCOPE_TYPE_PACKAGE_VAR:
+		scope.Elevate = true
+
+	default:
+		scope.Elevate = false
+	}
 
 	// set ID
 	scope.ID = NewScopeID(*scope.Node, scope.Type)
 
 	return &scope
+}
+
+// adds decl to map of decl ids and corresponding labels
+func (scope *Scope) AddDecl(decl_id ID, decl_label string) *Scope {
+	if _, ok := (*scope).Decls[decl_id]; ok {
+		// add to existing
+		(*scope).Decls[decl_id] = append((*scope).Decls[decl_id], decl_label)
+	} else {
+		// make new
+		(*scope).Decls[decl_id] = append(make([]string, 1), decl_label)
+	}
+	// (*scope).Decls = (*scope).ElevatedIDs.Append(decl_id)
+
+	return scope
+}
+
+// adds scope if to array of elevated ids
+func (scope *Scope) ElevateID(scope_id ID) *Scope {
+	(*scope).ElevatedIDs = (*scope).ElevatedIDs.Append(scope_id)
+
+	return scope
 }
 
 // Returns the Pos of Scope.Node
@@ -93,10 +133,6 @@ func (ms *MapOfScopes) ToString() string {
 	return _string
 }
 
-// ScopeDeclMap
-// Label => NewVarDeclID().ID
-type ScopeDeclMap map[ID]ID
-
-func NewScopeDeclMap() *ScopeDeclMap {
-	return &ScopeDeclMap{}
+func (ms *MapOfScopes) Size() int {
+	return len(*ms)
 }

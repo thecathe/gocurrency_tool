@@ -15,10 +15,6 @@ type ScopeManager struct {
 	FileSet  *token.FileSet
 	FileSrc  string
 	Decls    *MapOfDecls
-	// Cache    struct {
-	// 	AwaitedFunction   AwaitedFunction
-	// 	ExpectingFunction bool
-	// }
 }
 
 func NewScopeManager(filename string, fileset *token.FileSet) (*ScopeManager, error) {
@@ -50,20 +46,30 @@ func (sm *ScopeManager) CheckAwaitedFunction(node *ast.Node) (*ScopeManager, boo
 func (sm *ScopeManager) ParseNode(node ast.Node) (*ScopeManager, ParseType) {
 
 	// if not first scope
-	if _size := (*sm).StackSize(); _size > 0 {
+	if _size := (*sm).Stack.Size(); _size > 0 {
 		// Check if leaving current scope
 		if outer_scope, ok := (*sm).Peek(); ok {
 			// check not leaving file
 			if outer_scope.Type != SCOPE_TYPE_FILE {
+				// leave scope if pos of current node is beyond end of current outer scope
 				if (node).Pos() > (*(outer_scope).Node).End() {
-					// if current node starts after the current scope ends, left current scope
-					// log.DebugLog("Analyser; ParseNode, Exiting Scope: %d > %d\n", (node).Pos(), (*(outer_scope).Node).End())
+
+					// check if var decls and assignments should be elevated
+					if (outer_scope).Elevate {
+						// check if outer scope exists
+						if outer_scopes, ok := (*sm).PeekX(2); ok {
+							// elevate to outerscope
+							sm = (*sm).Elevate(outer_scopes[0].ID, outer_scopes[1].ID)
+						} else {
+							log.WarningLog("Analyser; Parsenode; scope elevation flag, but no parent scope:\n\t%s\n\t%s\n", outer_scope.ID, outer_scopes[0].ID)
+						}
+					}
+
+					// then exit scope
 					if _sm, ok := (*sm).Pop(); ok {
 						sm = _sm
-						// log.DebugLog("Analyser; ParseNode, Exiting Scope: %d -> %d\n", _size, (*sm).StackSize())
-						log.GeneralLog("Analyser; ParseNode, Exiting Scope: %s\n", outer_scope.ID)
-						// do not return, continue add scope
-						// return sm, PARSE_SCOPE_EXIT
+						// log on exit
+						(*sm).ToFile((*sm).LogAll())
 					} else {
 						// failed
 						log.FailureLog("Analyser; ParseNode, StackPop.\n")
@@ -77,6 +83,7 @@ func (sm *ScopeManager) ParseNode(node ast.Node) (*ScopeManager, ParseType) {
 		}
 	} else {
 		log.DebugLog("Analyser; ParseNode: First Scope\n\n")
+
 		if scope, ok := (*sm).Peek(); ok {
 			log.WarningLog("Analyser; ParseNode, StackPeek Successful : %d | Scope: %s\n", _size, scope.ID)
 		}
@@ -167,7 +174,7 @@ func (sm *ScopeManager) ParseNode(node ast.Node) (*ScopeManager, ParseType) {
 				return sm, PARSE_NONE
 			}
 		} else {
-			log.FailureLog("Analyser; ParseNode, StackPeek: Size %d\n", (*sm).StackSize())
+			log.FailureLog("Analyser; ParseNode, StackPeek: Size %d\n", (*sm).Stack.Size())
 			return sm, PARSE_FAIL_STACK_PEEK
 		}
 
@@ -202,7 +209,7 @@ func (sm *ScopeManager) ParseNode(node ast.Node) (*ScopeManager, ParseType) {
 				return sm, PARSE_NONE
 			}
 		} else {
-			log.FailureLog("Analyser; ParseNode, StackPeek: Size %d\n", (*sm).StackSize())
+			log.FailureLog("Analyser; ParseNode, StackPeek: Size %d\n", (*sm).Stack.Size())
 			return sm, PARSE_FAIL_STACK_PEEK
 		}
 
@@ -283,7 +290,7 @@ func (sm *ScopeManager) ParseNode(node ast.Node) (*ScopeManager, ParseType) {
 				return sm, PARSE_NONE
 			}
 		} else {
-			log.FailureLog("Analyser; ParseNode, StackPeek: Size %d\n", (*sm).StackSize())
+			log.FailureLog("Analyser; ParseNode, StackPeek: Size %d\n", (*sm).Stack.Size())
 			return sm, PARSE_FAIL_STACK_PEEK
 		}
 
@@ -293,11 +300,7 @@ func (sm *ScopeManager) ParseNode(node ast.Node) (*ScopeManager, ParseType) {
 		// check outerscopes context
 		if outer_scopes, ok := (*sm).PeekX(2); ok {
 
-			// TODO
-			// var file_scope Scope = *outer_scopes[0]
-			// var Scope = *outer_scopes[1]
-
-			log.DebugLog("Analyser; ParseNode, ValueSpec: outer scopes:\n\t0: %s\n\t1: %s\n", outer_scopes[0].Type, outer_scopes[1].Type)
+			// log.DebugLog("Analyser; ParseNode, ValueSpec: outer scopes:\n\t0: %s\n\t1: %s\n", outer_scopes[0].Type, outer_scopes[1].Type)
 
 			// if file > gendecl > node
 			if outer_scopes[0].Type == SCOPE_TYPE_FILE {
@@ -309,20 +312,26 @@ func (sm *ScopeManager) ParseNode(node ast.Node) (*ScopeManager, ParseType) {
 					log.DebugLog("Analyser; ParseNode, ValueSpec: package var\n")
 					if _sm, ok := (*sm).NewVarDecl(node, token.VAR); ok {
 						sm = _sm
+					} else {
+						log.FailureLog("Analyser; ParseNode, ValueSpec: failed\n")
 					}
 					return sm, PARSE_PACKAGE_VAR
 
 				case SCOPE_TYPE_PACKAGE_CONST:
-					log.DebugLog("Analyser; ParseNode, ValueSpec: package var\n")
+					log.DebugLog("Analyser; ParseNode, ValueSpec: package const\n")
 					if _sm, ok := (*sm).NewVarDecl(node, token.CONST); ok {
 						sm = _sm
+					} else {
+						log.FailureLog("Analyser; ParseNode, ValueSpec: failed\n")
 					}
 					return sm, PARSE_PACKAGE_CONST
 
 				case SCOPE_TYPE_FILE_IMPORT:
-					log.DebugLog("Analyser; ParseNode, ValueSpec: package var\n")
+					log.DebugLog("Analyser; ParseNode, ValueSpec: file import\n")
 					if _sm, ok := (*sm).NewVarDecl(node, token.IMPORT); ok {
 						sm = _sm
+					} else {
+						log.FailureLog("Analyser; ParseNode, ValueSpec: failed\n")
 					}
 					return sm, PARSE_FILE_IMPORT
 				// not accounted for
@@ -333,7 +342,7 @@ func (sm *ScopeManager) ParseNode(node ast.Node) (*ScopeManager, ParseType) {
 			}
 			return sm, PARSE_NONE
 		} else {
-			log.FailureLog("Analyser; ParseNode, StackPeek: Size %d\n", (*sm).StackSize())
+			log.FailureLog("Analyser; ParseNode, StackPeek: Size %d\n", (*sm).Stack.Size())
 			return sm, PARSE_FAIL_STACK_PEEK
 		}
 
@@ -354,7 +363,7 @@ func (sm *ScopeManager) ParseNode(node ast.Node) (*ScopeManager, ParseType) {
 			// find label decl
 			switch var_label_type := node_type.Lhs[0].(type) {
 			case *ast.Ident:
-				var decl_id ID = (*sm).FindDeclID(var_label_type.Name)
+				var decl_id, _, _, _ = (*sm).FindDeclID(var_label_type.Name)
 				// update values
 				sm = (*sm).VarDeclAddValue(decl_id, var_label_type, node_type.Pos())
 
@@ -373,29 +382,53 @@ func (sm *ScopeManager) ParseNode(node ast.Node) (*ScopeManager, ParseType) {
 	}
 }
 
-// Returns the first Scope found that contains a VarDecl of the Label provided.
+// Returns the decl and scope IDs of first Scope containing a VarDecl of the Label provided.
+// Bool signifies if decl is in an elevated scope of return scope.
 // Goes through the Stack from top to bottom.
-func (sm *ScopeManager) FindDeclID(label string) ID {
-
-	for i := 0; i < (*sm).Stack.Size(); i++ {
+func (sm *ScopeManager) FindDeclID(label string) (ID, ID, bool, ID) {
+	for i := 0; i <= (*sm).Stack.Size(); i++ {
 		// from top of stack
 		if scope_id, ok := (*sm).Stack.Get((*sm).Stack.Size() - i); ok {
+			// log.DebugLog("\n\n\nchecking %s", scope_id)
 			// get possible decl id
 			var decl_id ID = NewVarDeclID(label, scope_id)
+			// log.DebugLog("%s", decl_id)
 			// check if in this scope
-			if _, ok := (*(*sm.ScopeMap)[scope_id].Decls)[decl_id]; ok {
-				return decl_id
+			if _, ok := (*sm.ScopeMap)[scope_id].Decls[decl_id]; ok {
+				return decl_id, scope_id, false, ID("")
+			}
+
+			// check elevated ids in scope
+			if _elevated_ids, ok := (*sm).GetElevated(scope_id); ok {
+				// log.DebugLog("has elevated ids: \n%s", _elevated_ids)
+				for _, _elevated_id := range *_elevated_ids {
+					// get possible decl id
+					var decl_id ID = NewVarDeclID(label, _elevated_id)
+					// log.DebugLog("%s", decl_id)
+					// check if in this scope
+					if _, ok := (*sm.ScopeMap)[_elevated_id].Decls[decl_id]; ok {
+						return decl_id, scope_id, true, _elevated_id
+					}
+				}
 			}
 		}
 	}
 	// not found
-	return ID("")
+	return ID(""), ID(""), false, ID("")
 }
 
 // Adds a given value to a VarDecls slice of Values
 func (sm *ScopeManager) VarDeclAddValue(decl_id ID, expr ast.Expr, pos token.Pos) *ScopeManager {
-	var value VarValue = (*sm).NewVarValue(expr, pos)
-	(*sm.Decls)[decl_id] = (*sm.Decls)[decl_id].AddValue(value)
+	// get value
+	_value, _ := (*sm).NewVarValue(expr, pos)
+	(*sm.Decls)[decl_id] = (*sm.Decls)[decl_id].AddValue(_value)
+	return sm
+}
+
+// adds a given decl id to a scopes list of ids
+func (sm *ScopeManager) ScopeAddDeclID(scope_id ID, decl_id ID) *ScopeManager {
+	(*(*sm).ScopeMap)[scope_id] = (*(*sm).ScopeMap)[scope_id].AddDecl(decl_id, (*sm.Decls)[decl_id].Label)
+
 	return sm
 }
 
@@ -432,7 +465,7 @@ func (sm *ScopeManager) Position() token.Position {
 	return (*sm).FileSet.Position(token.NoPos)
 }
 
-// Returns X amount of Scopes at the top of the Stack, and bool if successful
+// Returns X amount of Scopes at the top of the Stack (0 being outermost), and bool if successful
 func (sm *ScopeManager) PeekX(x int) ([]*Scope, bool) {
 	// log.DebugLog("Entering peekX\n")
 	if scope_ids, ok := (*sm).Stack.PeekX(x); ok {
@@ -464,11 +497,6 @@ func (sm *ScopeManager) PeekID() (ID, bool) {
 	return ID(""), false
 }
 
-// Returns size of index
-func (sm *ScopeManager) StackSize() int {
-	return (*sm).Stack.Size()
-}
-
 // Returns the Scope ID at the given Index, from 0.
 func (sm *ScopeManager) Get(index int) (ID, bool) {
 	return (*sm).Stack.Get(index)
@@ -488,4 +516,37 @@ func (sm *ScopeManager) Pop() (*ScopeManager, bool) {
 		return sm, true
 	}
 	return sm, false
+}
+
+// adds elevate id to elevate array of scope id
+func (sm *ScopeManager) Elevate(scope_id ID, elevate_id ID) *ScopeManager {
+	if (*(*sm).ScopeMap)[scope_id] != nil {
+		// elevate
+		(*(*sm).ScopeMap)[scope_id] = (*(*sm).ScopeMap)[scope_id].ElevateID(elevate_id)
+
+		log.DebugLog("Analyser; Elevate scope ID; success\n")
+	} else {
+		log.WarningLog("Analyser; Elevate scope ID yields nil: %s\n", scope_id)
+	}
+
+	return sm
+}
+
+// returns array of ids elevated to given scope id
+func (sm *ScopeManager) GetElevated(scope_id ID) (*IDs, bool) {
+	if len(*(*(*sm).ScopeMap)[scope_id].ElevatedIDs) > 0 {
+		return (*(*sm).ScopeMap)[scope_id].ElevatedIDs, true
+	} else {
+		return NewIDs(), false
+	}
+}
+
+// checks if id is in id of arrays
+func (ids *IDs) ContainsID(id ID) bool {
+	for _, _id := range *ids {
+		if id == _id {
+			return true
+		}
+	}
+	return false
 }
