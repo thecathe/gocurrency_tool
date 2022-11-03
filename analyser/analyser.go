@@ -56,27 +56,32 @@ func AnalyseAst(fileset *token.FileSet, package_name string, filename string, no
 }
 
 func runScopeManager(filename string, file *ast.File, node ast.Node) {
-	log.GeneralLog("Analyser, %s: Running Scope Manager\n\n\n", filename)
+	log.GeneralLog("RunScopeManager, %s: Running Scope Manager\n\n\n", filename)
 	if _scope_manager, _parse_type := scope_manager.ParseNode(node); _parse_type != scopemanager.PARSE_NONE {
 		scope_manager = _scope_manager
 		// log.DebugLog("Analyser, %s: %d : %s\n", filename, scope_manager.StackSize(), _parse_type)
 
 		// generate scope map
-		log.DebugLog("Analyser, %d File Decls.\n\n", len(file.Decls))
+		log.DebugLog("RunScopeManager, %d File Decls.\n\n", len(file.Decls))
 		var total_node_visit_count int = 0
+
+		log.SetDisplay(true)
+		log.SetCounter(total_node_visit_count)
+
 		for _, file_decl := range file.Decls {
 			// go through each scope in file
 
-			log.DebugLog("Analyser, ast.Inspect... %v - %v\n", file_decl.Pos(), file_decl.End())
+			log.DebugLog("RunScopeManager, ast.Inspect... %v - %v\n", file_decl.Pos(), file_decl.End())
 			var node_visit_count int = scope_manager.Stack.Size() // match index
 			var relevant_node_visit_count int = node_visit_count
 			// start of each node inspect
 			ast.Inspect(file_decl, func(_decl ast.Node) bool {
 				if _decl == nil {
 					// fail or last
-					log.DebugLog("Analyser, ast.Inspect finished: %d ...\n", node_visit_count)
+					// log.DebugLog("Analyser, ast.Inspect finished: %d ...\n", node_visit_count)
 				} else {
 					node_visit_count++
+					log.SetCounter(node_visit_count)
 					// for every node in this scope
 					// give current node to manager
 					if _scope_manager, parse_type := scope_manager.ParseNode(_decl); parse_type != scopemanager.PARSE_NONE {

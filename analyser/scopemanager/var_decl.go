@@ -31,7 +31,7 @@ func (sm *ScopeManager) NewVarDecl(node ast.Node, tok token.Token) (*ScopeManage
 			var_decl.Node = &node
 
 			var_decl.Label = name.Name
-			log.GeneralLog("Analyser, NewVarDecl; Valuespec: %s\n\n", var_decl.Label)
+			log.GeneralLog("NewVarDecl; Valuespec: %s\n\n", var_decl.Label)
 			// get var type // also gets any values in data
 			var_decl.Type = (*sm).NewVarType(node)
 			var_decl.Token = tok
@@ -47,9 +47,9 @@ func (sm *ScopeManager) NewVarDecl(node ast.Node, tok token.Token) (*ScopeManage
 
 				// if not found from decl, find in assignment
 				if var_decl.Type.Type == VAR_DATA_TYPE_NONE {
-					log.DebugLog("Analyser, NewVarDecl: type not found in decl")
+					log.DebugLog("NewVarDecl: type not found in decl")
 					if _var_type.Type == VAR_DATA_TYPE_NONE {
-						log.FailureLog("Analyser, NewVarDecl: unable to infer type from assignment")
+						log.FailureLog("NewVarDecl: unable to infer type from assignment")
 					} else {
 						var_decl.Type = _var_type
 					}
@@ -61,31 +61,24 @@ func (sm *ScopeManager) NewVarDecl(node ast.Node, tok token.Token) (*ScopeManage
 				if current_scope_id, ok := (*sm).PeekID(); ok {
 					(*(*sm).ScopeMap)[current_scope_id] = (*(*sm).ScopeMap)[current_scope_id].AddDecl(_new_decl_id, var_decl.Label)
 				} else {
-					log.FailureLog("Analyser, NewVarDecl: Failed to add decl to scope list: ScopeID: %s, DeclID: %s", current_scope_id, _new_decl_id)
+					log.FailureLog("NewVarDecl: Failed to add decl to scope list: ScopeID: %s, DeclID: %s", current_scope_id, _new_decl_id)
 				}
 
 				// add to ScopeManager
 				(*sm.Decls)[_new_decl_id] = &var_decl
 
-				// // if chan, add to var type info
-				// if var_decl.Type.Type == VAR_DATA_TYPE_CHAN {
-				// 	var_decl.Type.Info["ChanType"] = _info["ChanType"]
-				// 	var_decl.Type.Info["BufferSize"] = _info["BufferSize"]
+				// if chan, add to var type info
+				if var_decl.Type.Type == VAR_DATA_TYPE_CHAN {
+					var_decl.Type.Type = _var_type.Type
+					for _key, _value := range _var_type.Info {
+						var_decl.Type.Info[_key] = _value
+					}
 
-				// 	// update chan type
-				// 	if var_decl.Type.Info["ChanType"] == "async" {
-				// 		var_decl.Type.Type = VAR_DATA_TYPE_ASYNC_CHAN
-				// 	} else if var_decl.Type.Info["ChanType"] == "sync" {
-				// 		var_decl.Type.Type = VAR_DATA_TYPE_SYNC_CHAN
-				// 	} else {
-				// 		log.WarningLog("Analyser, NewVarDecl Chan info error: %s", var_decl.Type.Info["ChanType"])
-				// 	}
-
-				// 	log.DebugLog("Analyser, NewVarDecl Chan Details: %s, %s", var_decl.Type.Type, var_decl.Type.Info["BufferSize"])
-				// }
+					log.DebugLog("NewVarDecl Chan Details: %s, %s", var_decl.Type.Type, var_decl.Type.Info["BufferSize"])
+				}
 
 			} else {
-				log.WarningLog("Analyser, NewVarDecl: Values len greater than 1")
+				log.WarningLog("NewVarDecl: Values len greater than 1")
 			}
 
 		}
@@ -93,20 +86,22 @@ func (sm *ScopeManager) NewVarDecl(node ast.Node, tok token.Token) (*ScopeManage
 
 	// variable assignment
 	case *ast.AssignStmt:
-		log.DebugLog("Analyser, NewVarDecl: *ast.AssignStmt")
-		var var_decl VarDecl
+		log.DebugLog("NewVarDecl: *ast.AssignStmt")
 
 		switch node_type.Tok {
 		case token.DEFINE:
-			// check decl
 			// for each decl
 			for index, expr := range node_type.Lhs {
+				var var_decl VarDecl
+				var_decl.Node = &node
+				var_decl.Token = tok
+
 				// ensure ident
 				switch expr_ident := expr.(type) {
 				case *ast.Ident:
 
 					var_decl.Label = expr_ident.Name
-					log.GeneralLog("Analyser, NewVarDecl; Assignstmt, Ident: %s\n\n", var_decl.Label)
+					log.GeneralLog("NewVarDecl; Assignstmt, Ident: %s\n\n", var_decl.Label)
 
 					var_decl.Type = (*sm).NewVarType(node)
 					var_decl.Token = token.DEFINE
@@ -114,14 +109,22 @@ func (sm *ScopeManager) NewVarDecl(node ast.Node, tok token.Token) (*ScopeManage
 					// get value
 					_value, _var_type := (*sm).NewVarValue(node_type.Rhs[index], node_type.Pos())
 
+					// check if type data can be gained from value
+					if var_decl.Type.Type == VAR_DATA_TYPE_NONE {
+						var_decl.Type.Type = _var_type.Type
+						for _key, _value := range _var_type.Info {
+							var_decl.Type.Info[_key] = _value
+						}
+					}
+
 					// add to values
 					var_decl = *(var_decl).AddValue(_value)
 
 					// if not found from decl, find in assignment
 					if var_decl.Type.Type == VAR_DATA_TYPE_NONE {
-						log.DebugLog("Analyser, NewVarDecl: type not found in decl")
+						log.DebugLog("NewVarDecl: type not found in decl")
 						if _var_type.Type == VAR_DATA_TYPE_NONE {
-							log.FailureLog("Analyser, NewVarDecl: unable to infer type from assignment")
+							log.FailureLog("NewVarDecl: unable to infer type from assignment")
 						} else {
 							var_decl.Type = _var_type
 						}
@@ -133,13 +136,19 @@ func (sm *ScopeManager) NewVarDecl(node ast.Node, tok token.Token) (*ScopeManage
 					if current_scope_id, ok := (*sm).PeekID(); ok {
 						(*(*sm).ScopeMap)[current_scope_id] = (*(*sm).ScopeMap)[current_scope_id].AddDecl(_new_decl_id, var_decl.Label)
 					} else {
-						log.FailureLog("Analyser, NewVarDecl: Failed to add decl to scope list: ScopeID: %s, DeclID: %s", current_scope_id, _new_decl_id)
+						log.FailureLog("NewVarDecl: Failed to add decl to scope list: ScopeID: %s, DeclID: %s", current_scope_id, _new_decl_id)
 					}
 
 					// add to ScopeManager
 					(*sm.Decls)[_new_decl_id] = &var_decl
+				//
+				default:
+					log.WarningLog("NewVarDecl, assignstmt, ident: default")
 				}
 			}
+		//
+		default:
+			log.WarningLog("NewVarDecl, assignstmt: default")
 		}
 		return sm, true
 

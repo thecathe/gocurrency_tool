@@ -69,7 +69,7 @@ func (sm *ScopeManager) ParseNode(node ast.Node) (*ScopeManager, ParseType) {
 					if _sm, ok := (*sm).Pop(); ok {
 						sm = _sm
 						// log on exit
-						(*sm).ToFile((*sm).LogAll())
+						(*sm).ToFile((*sm).LogAll(false))
 					} else {
 						// failed
 						log.FailureLog("Analyser; ParseNode, StackPop.\n")

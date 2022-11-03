@@ -82,6 +82,15 @@ func (cvt *CompoundVarType) Slice() *[]string {
 	return &slice
 }
 
+func (cvt *CompoundVarType) Get(index int) GeneralVarType {
+	for _index, _vt := range *cvt {
+		if index == _index {
+			return _vt
+		}
+	}
+	return GeneralVarType("")
+}
+
 func CompoundVarTypeBuilder(node ast.Node) CompoundVarType {
 	var cvt = make(CompoundVarType, 0)
 

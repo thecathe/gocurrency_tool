@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"go/ast"
 	"go/token"
-	"strings"
+	"strconv"
 
 	"github.com/thecathe/gocurrency_tool/analyser/log"
 )
@@ -39,8 +39,8 @@ func (sm *ScopeManager) NewVarType(node ast.Node) VarType {
 
 	// Define (:=) assignment
 	case *ast.AssignStmt:
-		log.DebugLog("Analyser, NewVarType: *ast.AssignStmt\n")
-		var_type.Info["NodeTrace"] = fmt.Sprintf("%s>%s", var_type.Info["NodeTrace"], "*ast.AssignStmt")
+		log.DebugLog("NewVarType: *ast.AssignStmt\n")
+		var_type.Info["NodeTrace"] = fmt.Sprintf("%s > %s", var_type.Info["NodeTrace"], "*ast.AssignStmt")
 
 		switch node_type.Tok {
 
@@ -51,65 +51,77 @@ func (sm *ScopeManager) NewVarType(node ast.Node) VarType {
 
 			// same type as predefined var
 			case *ast.Ident:
-				var_type.Info["NodeTrace"] = fmt.Sprintf("%s>%s", var_type.Info["NodeTrace"], "*ast.Ident")
-				// find corresponding decl
-				if _decl_id, _scope_id, _, _ := (*sm).FindDeclID(rhs_expr.Name); _scope_id != "" {
-					var_type.Type = (*(*sm).Decls)[_decl_id].Type.Type
+				var_type.Info["NodeTrace"] = fmt.Sprintf("%s > %s", var_type.Info["NodeTrace"], "*ast.Ident")
+				// check bool
+				if rhs_expr.Name == "true" {
+					var_type.Type = VAR_DATA_TYPE_BOOL
+				} else if rhs_expr.Name == "false" {
+					var_type.Type = VAR_DATA_TYPE_BOOL
 				} else {
-					log.FailureLog("Analayser, NewVarType; *ast.Ident: label: \"%s\" did not yield a decl_id", rhs_expr.Name)
+					// find corresponding decl
+					if _decl_id, _scope_id, _, _ := (*sm).FindDeclID(rhs_expr.Name); _scope_id != "" {
+						var_type.Type = (*(*sm).Decls)[_decl_id].Type.Type
+					} else {
+						log.FailureLog("NewVarType; *ast.Ident: label: \"%s\" did not yield a decl_id", rhs_expr.Name)
+					}
 				}
 
 			// int or string
 			case *ast.BasicLit:
-				var_type.Info["NodeTrace"] = fmt.Sprintf("%s>%s", var_type.Info["NodeTrace"], "*ast.BasicLit")
+				var_type.Info["NodeTrace"] = fmt.Sprintf("%s > %s", var_type.Info["NodeTrace"], "*ast.BasicLit")
 				var_type.Type = TokKindToVarType(rhs_expr.Kind)
 
 			// Data received from channel
 			case *ast.UnaryExpr:
-				var_type.Info["NodeTrace"] = fmt.Sprintf("%s>%s", var_type.Info["NodeTrace"], "*ast.UnaryExpr")
+				var_type.Info["NodeTrace"] = fmt.Sprintf("%s > %s", var_type.Info["NodeTrace"], "*ast.UnaryExpr")
 
 				switch rhs_expr.Op {
 
 				// received from channel
 				case token.ARROW:
-					log.GeneralLog("Analyser, NewVarType; data received from channel")
+					log.GeneralLog("NewVarType; data received from channel")
 					var channel_name string = rhs_expr.X.(*ast.Ident).Name
 					// search outwardly for first decl of this label
-					if channel_decl_id, _, _, _ := (*sm).FindDeclID(channel_name); channel_decl_id != "" {
-						// copy
-						copy(var_type.Data, (*sm.Decls)[channel_decl_id].Type.Data[1:])
+					if channel_decl_id, _scope_id, _elevated, _elevated_id := (*sm).FindDeclID(channel_name); channel_decl_id != "" {
+						if _elevated {
+							_scope_id = _elevated_id
+						}
+						// channels known to have value as most specific data type
+						if _index, _var_value := (*(*sm).Decls)[channel_decl_id].FindValue(_scope_id); _index >= 0 {
+							var_type.Type = GeneralVarType(_var_value.Value)
+						}
 					}
 
 				// unaccounted for
 				default:
-					log.DebugLog("Analyser, NewVarType; *ast.Unary: unaccounted for token: %s", rhs_expr.Op.String())
+					log.DebugLog("NewVarType; *ast.Unary: unaccounted for token: %s", rhs_expr.Op.String())
 				}
 
 			// Type from Function
 			case *ast.CallExpr:
-				var_type.Info["NodeTrace"] = fmt.Sprintf("%s>%s", var_type.Info["NodeTrace"], "*ast.CallExpr")
-				var_type = *(*sm).CallExprVarType(rhs_expr)
+				var_type.Info["NodeTrace"] = fmt.Sprintf("%s > %s", var_type.Info["NodeTrace"], "*ast.CallExpr")
+				var_type = *(*sm).CallExprVarType(&var_type, rhs_expr)
 
 			// some other func
 			case *ast.CompositeLit:
-				var_type.Info["NodeTrace"] = fmt.Sprintf("%s>%s", var_type.Info["NodeTrace"], "*ast.CompositeLit")
+				var_type.Info["NodeTrace"] = fmt.Sprintf("%s > %s", var_type.Info["NodeTrace"], "*ast.CompositeLit")
 				var_type = *var_type.CompositeLit(rhs_expr)
 			//
 			default:
-				var_type.Info["NodeTrace"] = fmt.Sprintf("%s>%s", var_type.Info["NodeTrace"], "*ast.Default")
+				var_type.Info["NodeTrace"] = fmt.Sprintf("%s > %s", var_type.Info["NodeTrace"], "*ast.Default")
 				var_type.Type = VAR_DATA_TYPE_OTHER
 			}
 		}
 
 	// Params
 	case *ast.Field:
-		log.DebugLog("Analyser, NewVarType: *ast.Field\n")
-		var_type.Info["NodeTrace"] = fmt.Sprintf("%s>%s", var_type.Info["NodeTrace"], "*ast.Field")
+		log.DebugLog("NewVarType: *ast.Field\n")
+		var_type.Info["NodeTrace"] = fmt.Sprintf("%s > %s", var_type.Info["NodeTrace"], "*ast.Field")
 
 	// Declaration
 	case *ast.ValueSpec:
-		log.DebugLog("Analyser, NewVarType: *ast.ValueSpec\n")
-		var_type.Info["NodeTrace"] = fmt.Sprintf("%s>%s", var_type.Info["NodeTrace"], "*ast.ValueSpec")
+		log.DebugLog("NewVarType: *ast.ValueSpec\n")
+		var_type.Info["NodeTrace"] = fmt.Sprintf("%s > %s", var_type.Info["NodeTrace"], "*ast.ValueSpec")
 
 		// look in type field
 		if node_type.Type != nil {
@@ -117,94 +129,47 @@ func (sm *ScopeManager) NewVarType(node ast.Node) VarType {
 
 			// Pointer
 			case *ast.Ident:
-				var_type.Info["NodeTrace"] = fmt.Sprintf("%s>%s", var_type.Info["NodeTrace"], "*ast.Ident")
+				var_type.Info["NodeTrace"] = fmt.Sprintf("%s > %s", var_type.Info["NodeTrace"], "*ast.Ident")
 				var_type.Type = DataStringToVarType(value_type.Name)
 
 			// Channel
 			case *ast.ChanType:
-				var_type.Info["NodeTrace"] = fmt.Sprintf("%s>%s", var_type.Info["NodeTrace"], "*ast.ChanType")
-				log.DebugLog("Analyser, NewVarType: chan\n")
+				var_type.Info["NodeTrace"] = fmt.Sprintf("%s > %s", var_type.Info["NodeTrace"], "*ast.ChanType")
 				var_type.Type = VAR_DATA_TYPE_CHAN
-				var_type.Data = append(var_type.Data, VAR_DATA_TYPE_CHAN)
+				var_type = *(*sm).ChanTypeVarType(&var_type, value_type)
 
-				switch rhs_expr := value_type.Value.(type) {
-
-				// chan of chan
-				case *ast.ChanType:
-					var_type.Info["NodeTrace"] = fmt.Sprintf("%s>%s", var_type.Info["NodeTrace"], "*ast.ChanType")
-					log.DebugLog("Analyser, NewVarType: chan chan\n")
-					var_type.Data = append(var_type.Data, VAR_DATA_TYPE_CHAN)
-
-					switch inner_chan_expr := rhs_expr.Value.(type) {
-					// int or string
-					case *ast.Ident:
-						var_type.Info["NodeTrace"] = fmt.Sprintf("%s>%s", var_type.Info["NodeTrace"], "*ast.Ident")
-						var_type.Data = append(var_type.Data, DataStringToVarType(inner_chan_expr.Name))
-
-					// int or string
-					case *ast.BasicLit:
-						var_type.Info["NodeTrace"] = fmt.Sprintf("%s>%s", var_type.Info["NodeTrace"], "*ast.BasicLit")
-						var_type.Data = append(var_type.Data, TokKindToVarType(inner_chan_expr.Kind))
-
-					// Type from Function
-					case *ast.CallExpr:
-						var_type.Info["NodeTrace"] = fmt.Sprintf("%s>%s", var_type.Info["NodeTrace"], "*ast.CallExpr")
-						var_type = *(*sm).CallExprVarType(inner_chan_expr)
-
-					// some other func
-					case *ast.CompositeLit:
-						var_type.Info["NodeTrace"] = fmt.Sprintf("%s>%s", var_type.Info["NodeTrace"], "*ast.CompositeLit")
-						var_type = *var_type.CompositeLit(inner_chan_expr)
-
-					}
-
-				// int or string
-				case *ast.BasicLit:
-					var_type.Info["NodeTrace"] = fmt.Sprintf("%s>%s", var_type.Info["NodeTrace"], "*ast.BasicLit")
-					var_type.Type = TokKindToVarType(rhs_expr.Kind)
-
-				// Type from Function
-				case *ast.CallExpr:
-					var_type.Info["NodeTrace"] = fmt.Sprintf("%s>%s", var_type.Info["NodeTrace"], "*ast.CallExpr")
-					var_type = *(*sm).CallExprVarType(rhs_expr)
-
-				// some other func
-				case *ast.CompositeLit:
-					var_type.Info["NodeTrace"] = fmt.Sprintf("%s>%s", var_type.Info["NodeTrace"], "*ast.CompositeLit")
-					var_type = *var_type.CompositeLit(rhs_expr)
-
-				// unnaccounted for
-				default:
-					var_type.Info["NodeTrace"] = fmt.Sprintf("%s>%s", var_type.Info["NodeTrace"], "*ast.Default")
-					var_type.Type = VAR_DATA_TYPE_OTHER
-				}
+			//
+			default:
+				var_type.Info["NodeTrace"] = fmt.Sprintf("%s > %s", var_type.Info["NodeTrace"], "*ast.Default")
+				var_type.Type = VAR_DATA_TYPE_OTHER
 			}
 		}
 
 	// unnaccounted for
 	default:
 		var_type.Type = VAR_DATA_TYPE_OTHER
-		var_type.Info["NodeTrace"] = fmt.Sprintf("%s>%s", var_type.Info["NodeTrace"], "*ast.Default")
+		var_type.Info["NodeTrace"] = fmt.Sprintf("%s > %s", var_type.Info["NodeTrace"], "*ast.Default")
 	}
 
-	log.DebugLog("Analyser, leaving NewVarType: %s\n", var_type.Type)
+	log.DebugLog("leaving NewVarType: %s\n", var_type.Type)
 	return var_type
 }
 
 // comsposite lit to extractexpr
 func (vt *VarType) CompositeLit(node *ast.CompositeLit) *VarType {
 
-	log.DebugLog("Analyser, NewVarType: CompositeLit\n")
+	log.DebugLog("NewVarType: CompositeLit\n")
 	switch node.Type.(type) {
 	// Get them all
 	case *ast.SelectorExpr:
+		vt.Info["NodeTrace"] = fmt.Sprintf("%s > %s", vt.Info["NodeTrace"], "*ast.SelectorExpr")
 
 		// add to type
 		vt = vt.ExtractExpr(node.Type)
 		vt.Type = VAR_DATA_FUNC_RET
 
 	default:
-		vt.Info["NodeTrace"] = fmt.Sprintf("%s>%s", vt.Info["NodeTrace"], "*ast.Default")
+		vt.Info["NodeTrace"] = fmt.Sprintf("%s > %s", vt.Info["NodeTrace"], "*ast.Default")
 		vt.Type = VAR_DATA_TYPE_OTHER
 	}
 
@@ -215,45 +180,46 @@ func (vt *VarType) CompositeLit(node *ast.CompositeLit) *VarType {
 // ast.Expr should be of type *ast.SelectorExpr
 func (vt *VarType) ExtractExpr(current_sel_expr ast.Expr) *VarType {
 
-	var sel_expr []string = make([]string, 0)
-	var loop bool = true
-	for loop {
-		// For recursion on X,
-		switch outer_sel_type := current_sel_expr.(type) {
-		// only loops whilst SelectorExpr
+	// For recursion on X,
+	switch outer_sel_type := current_sel_expr.(type) {
+	case *ast.SelectorExpr:
+
+		// extracting from x
+		switch inner_sel_type := outer_sel_type.X.(type) {
+
+		// Selector
 		case *ast.SelectorExpr:
-			// still more to go, add sel to beginning of slice
-			sel_expr = append([]string{outer_sel_type.Sel.Name}, sel_expr...)
+			vt.Info["NodeTrace"] = fmt.Sprintf("%s > %s", vt.Info["NodeTrace"], "*ast.SelectorExpr")
+			// make x selector
+			vt = vt.ExtractExpr(inner_sel_type)
+			vt.Info["SelectorExpr"] = fmt.Sprintf("%s;%s", vt.Info["SelectorExpr"], inner_sel_type.Sel.Name)
+			return vt
 
-			// extracting from x
-			switch inner_sel_type := outer_sel_type.X.(type) {
-
-			// Selector
-			case *ast.SelectorExpr:
-				vt.Info["NodeTrace"] = fmt.Sprintf("%s>%s", vt.Info["NodeTrace"], "*ast.SelectorExpr")
-				// make x selector
-				current_sel_expr = inner_sel_type
-
-			// Ident
-			case *ast.Ident:
-				vt.Info["NodeTrace"] = fmt.Sprintf("%s>%s", vt.Info["NodeTrace"], "*ast.Ident")
-				// add x to beginning
-				sel_expr = append([]string{inner_sel_type.Name}, sel_expr...)
-				// end loop
-				loop = false
-			}
+		// Ident
+		case *ast.Ident:
+			vt.Info["NodeTrace"] = fmt.Sprintf("%s > %s", vt.Info["NodeTrace"], "*ast.Ident")
+			vt.Info["Function"] = inner_sel_type.Name
+			// add x to beginning
+			vt.Info["SelectorExpr"] = fmt.Sprintf("%s;%s", vt.Info["SelectorExpr"], inner_sel_type.Name)
+			return vt
 
 		default:
-			vt.Info["NodeTrace"] = fmt.Sprintf("%s>%s", vt.Info["NodeTrace"], "*ast.Default")
-			loop = false
+			vt.Info["NodeTrace"] = fmt.Sprintf("%s > %s", vt.Info["NodeTrace"], "*ast.Default")
+			vt.Info["Function"] = string(VAR_DATA_TYPE_OTHER)
+			// add x to beginning
+			vt.Info["SelectorExpr"] = fmt.Sprintf("%s;%s", vt.Info["SelectorExpr"], VAR_DATA_TYPE_OTHER)
+			return vt
 		}
+
+	default:
+		log.FailureLog("ExtractExpr; called on non-*ast.SelectorExpr: %v", outer_sel_type)
+		vt.Info["NodeTrace"] = fmt.Sprintf("%s > %s", vt.Info["NodeTrace"], "*ast.Default")
+		vt.Info["Function"] = string(VAR_DATA_TYPE_OTHER)
+		// add x to beginning
+		vt.Info["SelectorExpr"] = fmt.Sprintf("%s;%s", vt.Info["SelectorExpr"], VAR_DATA_TYPE_NONE)
+		return vt
 	}
 
-	// context
-	vt.Info["SelectorExpr"] = strings.Join(sel_expr, ";")
-	vt.Info["Function"] = sel_expr[len(sel_expr)-1]
-
-	return vt
 }
 
 // retrieves vartype data, and determins vartype type
@@ -269,43 +235,92 @@ func (vt *VarType) DetermineType(node ast.Node) *VarType {
 	return vt
 }
 
+// returns var type for chans
+func (sm *ScopeManager) ChanTypeVarType(var_type *VarType, node *ast.ChanType) *VarType {
+
+	var_type.Data = append(var_type.Data, VAR_DATA_TYPE_CHAN)
+
+	switch value_type := node.Value.(type) {
+
+	// chan of chan
+	case *ast.ChanType:
+		var_type.Info["NodeTrace"] = fmt.Sprintf("%s > %s", var_type.Info["NodeTrace"], "*ast.ChanType")
+		var_type = (*sm).ChanTypeVarType(var_type, value_type)
+		return var_type
+
+	// int or string
+	case *ast.Ident:
+		var_type.Info["NodeTrace"] = fmt.Sprintf("%s > %s", var_type.Info["NodeTrace"], "*ast.Ident")
+		var_type.Data = append(var_type.Data, DataStringToVarType(value_type.Name))
+		return var_type
+
+	// int or string
+	case *ast.BasicLit:
+		var_type.Info["NodeTrace"] = fmt.Sprintf("%s > %s", var_type.Info["NodeTrace"], "*ast.BasicLit")
+		var_type.Type = TokKindToVarType(value_type.Kind)
+		return var_type
+
+	// Type from Function
+	case *ast.CallExpr:
+		var_type.Info["NodeTrace"] = fmt.Sprintf("%s > %s", var_type.Info["NodeTrace"], "*ast.CallExpr")
+		var_type = (*sm).CallExprVarType(var_type, value_type)
+		return var_type
+
+	// some other func
+	case *ast.CompositeLit:
+		var_type.Info["NodeTrace"] = fmt.Sprintf("%s > %s", var_type.Info["NodeTrace"], "*ast.CompositeLit")
+		var_type = var_type.CompositeLit(value_type)
+		return var_type
+
+	// unnaccounted for
+	default:
+		var_type.Info["NodeTrace"] = fmt.Sprintf("%s > %s", var_type.Info["NodeTrace"], "*ast.Default")
+		var_type.Type = VAR_DATA_TYPE_OTHER
+		return var_type
+	}
+}
+
 // returns the var type derived from a call expr
-func (sm *ScopeManager) CallExprVarType(node *ast.CallExpr) *VarType {
-
-	var _var_type VarType = NewVarType()
-
-	log.DebugLog("Analyser, NewVarValue: CallExpr\n")
+func (sm *ScopeManager) CallExprVarType(var_type *VarType, node *ast.CallExpr) *VarType {
 
 	var call_name string = node.Fun.(*ast.Ident).Name
-	_var_type.Info["Function"] = call_name
+	var_type.Info["Function"] = call_name
 
 	switch call_name {
 
 	// Channel or Slice
 	case "make":
-		log.DebugLog("Analyser, NewVarValue: make\n")
 
 		// extract chan type
-		_var_type = *_var_type.DetermineType(node.Args[0])
+		var_type = var_type.DetermineType(node.Args[0])
 
 		switch node.Args[0].(type) {
 
 		// Channel
 		case *ast.ChanType:
+			var_type.Info["CallTrace"] = fmt.Sprintf("%s > %s", var_type.Info["CallTrace"], "*ast.ChanType")
 
 			// If Async. Channel
 			if len(node.Args) > 1 {
-				_var_type.Type = VAR_DATA_TYPE_ASYNC_CHAN
 
+				// check if value of buffer is 0
+				var chan_buffer_size int = -1
 				// get buffer size
 				switch _buffer_expr := node.Args[1].(type) {
 
 				// Buffer inline
 				case *ast.BasicLit:
-					_var_type.Info["BufferSize"] = fmt.Sprintf("%v", _buffer_expr.Value)
+					var_type.Info["CallTrace"] = fmt.Sprintf("%s > %s", var_type.Info["CallTrace"], "*ast.BasicLit")
+					// get size of buffer
+					if _size, err := strconv.Atoi(fmt.Sprintf("%v", _buffer_expr.Value)); err == nil {
+						chan_buffer_size = _size
+					} else {
+						log.FailureLog("CallExprVarType: unable to determine size of channel buffer: %v", _buffer_expr.Value)
+					}
 
 				// Buffer from var
 				case *ast.Ident:
+					var_type.Info["CallTrace"] = fmt.Sprintf("%s > %s", var_type.Info["CallTrace"], "*ast.Ident")
 					// search outwardly for first decl of this label
 					if _decl_id, _scope_id, _elevated, _elevated_id := (*sm).FindDeclID(_buffer_expr.Name); _scope_id != "" {
 						if _elevated {
@@ -314,29 +329,61 @@ func (sm *ScopeManager) CallExprVarType(node *ast.CallExpr) *VarType {
 						}
 						// get value
 						if _index, _buffer_value := (*(*sm.Decls)[_decl_id]).FindValue(_scope_id); _index >= 0 {
-							_var_type.Info["BufferSize"] = _buffer_value.Value
+							// get size of buffer
+							if _size, err := strconv.Atoi(fmt.Sprintf("%v", _buffer_value.Value)); err == nil {
+								chan_buffer_size = _size
+							} else {
+								log.FailureLog("CallExprVarType: unable to determine size of channel buffer: %v", _buffer_value.Value)
+							}
 						} else {
-							log.WarningLog("Analyser, NewVarValue, decl found, but value not found: %s,\t%s", _buffer_expr.Name, _scope_id)
+							log.WarningLog("CallExprVarType: decl found, but value not found: %s,\t%s", _buffer_expr.Name, _scope_id)
 						}
 
 					} else {
-						log.WarningLog("Analyser, NewVarValue, decl not found: %s", _buffer_expr.Name)
+						log.WarningLog("CallExprVarType: decl not found: %s", _buffer_expr.Name)
 					}
 
 				default:
-					_var_type.Info["BufferSize"] = fmt.Sprintf("unknown: [%v]", _buffer_expr)
+					var_type.Info["CallTrace"] = fmt.Sprintf("%s > %s", var_type.Info["CallTrace"], "*ast.Default")
+					var_type.Info["BufferSize"] = fmt.Sprintf("unknown: [%v]", _buffer_expr)
+					return var_type
 				}
+
+				// check buffer size
+				if chan_buffer_size == -1 {
+					// failed
+					log.WarningLog("CallExprVarType: buffer size not determined: %d", chan_buffer_size)
+
+				} else if chan_buffer_size == 0 {
+					var_type.Type = VAR_DATA_TYPE_SYNC_CHAN
+					var_type.Info["BufferSize"] = fmt.Sprintf("%d", chan_buffer_size)
+
+				} else if chan_buffer_size > 0 {
+					var_type.Type = VAR_DATA_TYPE_ASYNC_CHAN
+					var_type.Info["BufferSize"] = fmt.Sprintf("%d", chan_buffer_size)
+
+				} else {
+					// failed
+					log.WarningLog("CallExprVarType: buffer size not understood: %d", chan_buffer_size)
+				}
+				return var_type
+
 			} else {
 				// sync channel
-				_var_type.Type = VAR_DATA_TYPE_SYNC_CHAN
-				_var_type.Info["BufferSize"] = "0"
+				var_type.Type = VAR_DATA_TYPE_SYNC_CHAN
+				var_type.Info["BufferSize"] = "0"
+				return var_type
 			}
 
 		default:
-			_var_type.Type = VAR_DATA_TYPE_OTHER
+			var_type.Info["CallTrace"] = fmt.Sprintf("%s > %s", var_type.Info["CallTrace"], "*ast.Default")
+			var_type.Type = VAR_DATA_TYPE_OTHER
+			return var_type
 		}
 
+	default:
+		var_type.Info["CallTrace"] = fmt.Sprintf("%s > %s", var_type.Info["CallTrace"], "*ast.Default")
+		var_type.Type = VAR_DATA_TYPE_OTHER
+		return var_type
 	}
-
-	return &_var_type
 }

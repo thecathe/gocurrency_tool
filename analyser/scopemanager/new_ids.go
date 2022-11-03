@@ -30,6 +30,36 @@ func NewIDs() *IDs {
 	return &ids
 }
 
+func MakeIDs(_string *[]ID) *IDs {
+	var ids IDs = make(IDs, 0)
+
+	for _, _s := range *_string {
+		ids = append(ids, _s)
+	}
+
+	return &ids
+}
+
+func (ids *IDs) MakeString() *[]string {
+	var idstrings []string = make([]string, 0)
+
+	for _, _s := range *ids {
+		idstrings = append(idstrings, string(_s))
+	}
+
+	return &idstrings
+}
+
+func (ids *IDs) MakeIDs() *[]ID {
+	var idstrings []ID = make([]ID, 0)
+
+	for _, _s := range *ids {
+		idstrings = append(idstrings, ID(_s))
+	}
+
+	return &idstrings
+}
+
 func (_ids *IDs) Append(new_id ID) *IDs {
 	var new_ids IDs = make(IDs, len(*_ids)+1)
 	copy(new_ids, *_ids)

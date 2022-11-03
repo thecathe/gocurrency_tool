@@ -20,7 +20,7 @@ func (sm *ScopeManager) NewVarValue(expr ast.Expr, pos token.Pos) (VarValue, Var
 	var value VarValue
 	value.Value = "unknown"
 
-	var _var_type VarType
+	var _var_type VarType = NewVarType()
 	_var_type.Type = VAR_DATA_TYPE_NONE
 
 	value.Pos = pos
@@ -36,6 +36,31 @@ func (sm *ScopeManager) NewVarValue(expr ast.Expr, pos token.Pos) (VarValue, Var
 
 	case *ast.Ident:
 		value.Value = fmt.Sprintf("%v", value_expr.Name)
+		// check bool
+		if value_expr.Name == "true" {
+			_var_type.Type = VAR_DATA_TYPE_BOOL
+		} else if value_expr.Name == "false" {
+			_var_type.Type = VAR_DATA_TYPE_BOOL
+		} else {
+			// find corresponding decl
+			if _decl_id, _scope_id, _elevated, _elevated_id := (*sm).FindDeclID(value_expr.Name); _scope_id != "" {
+				_var_type.Type = (*(*sm).Decls)[_decl_id].Type.Type
+
+				if _elevated {
+					_scope_id = _elevated_id
+				}
+
+				if _index, _var_value := (*(*sm).Decls)[_decl_id].FindValue(_scope_id); _index >= 0 {
+					value.Value = fmt.Sprintf("%v", _var_value.Value)
+				} else {
+					value.Value = fmt.Sprintf("ident: %v", value_expr.Name)
+					log.FailureLog("NewVarValue; *ast.Ident: label: \"%s\" did not yield a decl_id", value_expr.Name)
+				}
+			} else {
+				value.Value = fmt.Sprintf("ident: %v", value_expr.Name)
+				log.FailureLog("NewVarValue; *ast.Ident: label: \"%s\" did not yield a decl_id", value_expr.Name)
+			}
+		}
 
 	// add as is
 	default:
@@ -44,7 +69,12 @@ func (sm *ScopeManager) NewVarValue(expr ast.Expr, pos token.Pos) (VarValue, Var
 
 		// Type from Function
 		case *ast.CallExpr:
-			_var_type = *(*sm).CallExprVarType(inner_expr)
+			_var_type.Info["ValueTrace"] = fmt.Sprintf("%s > %s", _var_type.Info["ValueTrace"], "*ast.CallExpr")
+			_var_type = *(*sm).CallExprVarType(&_var_type, inner_expr)
+			// patch var value
+			if _var_type.Type == VAR_DATA_TYPE_ASYNC_CHAN || _var_type.Type == VAR_DATA_TYPE_SYNC_CHAN || _var_type.Type == VAR_DATA_TYPE_CHAN {
+				value.Value = string(_var_type.Data.Get(len(_var_type.Data) - 1))
+			}
 
 		//
 		case *ast.BinaryExpr:
@@ -72,6 +102,6 @@ func (sm *ScopeManager) NewVarValue(expr ast.Expr, pos token.Pos) (VarValue, Var
 		}
 	}
 
-	log.DebugLog("Analyser, NewVarValue: %s", value.Value)
+	log.DebugLog("NewVarValue: %s", value.Value)
 	return value, _var_type
 }

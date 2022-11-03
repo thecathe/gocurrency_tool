@@ -19,7 +19,7 @@ const (
 var filenames map[string]int = make(map[string]int, 0)
 
 // combines all other log functions into one json
-func (sm *ScopeManager) LogAll() (string, string) {
+func (sm *ScopeManager) LogAll(print_traces bool) (string, string) {
 	var build_string string = ""
 
 	// scope stack
@@ -31,7 +31,7 @@ func (sm *ScopeManager) LogAll() (string, string) {
 	build_string = fmt.Sprintf("%s%s", build_string, _all_scopes_build_string)
 
 	// decls
-	_, _all_decls_build_string := (*sm).LogDecls()
+	_, _all_decls_build_string := (*sm).LogDecls(print_traces)
 	build_string = fmt.Sprintf("%s%s", build_string, _all_decls_build_string)
 
 	// trim , and end
@@ -63,10 +63,10 @@ func (sm *ScopeManager) LogScopes() (string, string) {
 }
 
 // returns log type and json of decls
-func (sm *ScopeManager) LogDecls() (string, string) {
+func (sm *ScopeManager) LogDecls(print_traces bool) (string, string) {
 	var build_string string = fmt.Sprintf("\"declmap\" : { \"count\" : %d, \"decls\" : [ ", (*sm).Decls.Size())
 
-	build_string = fmt.Sprintf("%s%s,", build_string, (*sm).StringifyDecls())
+	build_string = fmt.Sprintf("%s%s,", build_string, (*sm).StringifyDecls(print_traces))
 
 	build_string = fmt.Sprintf("%s ]},", build_string[:len(build_string)-1])
 
@@ -74,12 +74,12 @@ func (sm *ScopeManager) LogDecls() (string, string) {
 }
 
 // returns stringified decls
-func (sm *ScopeManager) StringifyDecls() string {
+func (sm *ScopeManager) StringifyDecls(print_traces bool) string {
 	var build_string string = ""
 
 	for _decl_id := range *(*sm).Decls {
 		if _, ok := (*(*sm).Decls)[_decl_id]; ok {
-			build_string = fmt.Sprintf("%s%s,", build_string, (*sm).StringifyDecl(_decl_id))
+			build_string = fmt.Sprintf("%s%s,", build_string, (*sm).StringifyDecl(_decl_id, print_traces))
 		}
 	}
 	if len(build_string) > 0 {
@@ -90,7 +90,7 @@ func (sm *ScopeManager) StringifyDecls() string {
 }
 
 // returns stringified decl from id
-func (sm *ScopeManager) StringifyDecl(decl_id ID) string {
+func (sm *ScopeManager) StringifyDecl(decl_id ID, print_traces bool) string {
 	var build_string string = fmt.Sprintf("{\"decl_id\" : \"%v\",\"label\" : \"%s\", ", decl_id, (*(*sm).Decls)[decl_id].Label)
 
 	build_string = fmt.Sprintf("%s\"data_type\" : {\"type\" : \"%v\", ", build_string, (*(*sm).Decls)[decl_id].Type.Type)
@@ -101,11 +101,20 @@ func (sm *ScopeManager) StringifyDecl(decl_id ID) string {
 		build_string = fmt.Sprintf("%s\"data\" : [], \"info\" : [ ", build_string)
 	}
 
+	// for every info
 	for _key, _value := range (*(*sm).Decls)[decl_id].Type.Info {
-		build_string = fmt.Sprintf("%s{\"%s\" : \"%s\"},", build_string, _key, _value)
+		// display traces?
+		if _key == "NodeTrace" || _key == "CallTrace" || _key == "ValueTrace" {
+			if print_traces {
+				build_string = fmt.Sprintf("%s{\"%s\" : \"%s\"},", build_string, _key, _value)
+			}
+		} else {
+			build_string = fmt.Sprintf("%s{\"%s\" : \"%s\"},", build_string, _key, _value)
+		}
 	}
 	build_string = fmt.Sprintf("%s], \"values\": [ ", build_string[:len(build_string)-1])
 
+	// for every value
 	for _, _value := range (*(*sm).Decls)[decl_id].Values {
 		build_string = fmt.Sprintf("%s{\"scope_id\": \"%s\", \"value\": \"%s\", \"pos\": \"%d\"},", build_string, _value.ScopeID, _value.Value, _value.Pos)
 	}
@@ -132,9 +141,19 @@ func (sm *ScopeManager) StringifyStack() string {
 
 // stringifies all scopes
 func (sm *ScopeManager) StringifyScopes() string {
+
+	// order scopes
+	var unordered_scope_ids IDs = make(IDs, 0)
+	for _scope_id := range *(*sm).ScopeMap {
+		unordered_scope_ids = append(unordered_scope_ids, _scope_id)
+	}
+
+	// log.GeneralLog("\n\n\n\nSortScopes:\n%02d | %s\n\n", len(*unordered_scope_ids.MakeString()), strings.Join([]string(*unordered_scope_ids.MakeString()), ", "))
+	var ordered_scope_ids []ID = *(*sm).SortScopes(unordered_scope_ids.MakeIDs())
+
 	var build_string string = ""
 
-	for _scope_id := range *(*sm).ScopeMap {
+	for _, _scope_id := range ordered_scope_ids {
 		if _, ok := (*(*sm).ScopeMap)[_scope_id]; ok {
 			build_string = fmt.Sprintf("%s%s,", build_string, sm.StringifyScope(_scope_id))
 		}
@@ -156,7 +175,10 @@ func (sm *ScopeManager) StringifyScope(scope_id ID) string {
 
 	// for all scope decls
 	for _decl_id := range (*(*sm).ScopeMap)[scope_id].Decls {
-		var_list = fmt.Sprintf("%s{ \"decl_id\" : \"%s\", \"values\" : [ ", var_list, _decl_id)
+
+		var_type := (*(*sm).Decls)[_decl_id].Type.Type
+
+		var_list = fmt.Sprintf("%s{ \"decl_id\" : \"%s\", \"type\" : \"%s\", \"values\" : [ ", var_list, _decl_id, var_type)
 		if _index, _value := (*(*sm.Decls)[_decl_id]).FindValue(scope_id); _index >= 0 {
 			var_list = fmt.Sprintf("%s\"%s\"", var_list, _value.Value)
 		} else {
@@ -174,7 +196,10 @@ func (sm *ScopeManager) StringifyScope(scope_id ID) string {
 		for _, _elevated_id := range *_elevated_ids {
 			// for each decl
 			for _decl_id := range (*(*sm).ScopeMap)[_elevated_id].Decls {
-				var_list = fmt.Sprintf("%s{\"decl_id\" : \"%s\", \"elevated_id\":\"%s\",\"values\" : [ ", var_list, _decl_id, _elevated_id)
+
+				var_type := (*(*sm).Decls)[_decl_id].Type.Type
+
+				var_list = fmt.Sprintf("%s{\"decl_id\" : \"%s\", \"elevated_id\":\"%s\", \"type\" : \"%s\", \"values\" : [ ", var_list, _decl_id, _elevated_id, var_type)
 				if _index, _value := (*(*sm.Decls)[_decl_id]).FindValue(_elevated_id); _index >= 0 {
 					var_list = fmt.Sprintf("%s\"%s\"", var_list, _value.Value)
 				} else {
@@ -202,7 +227,16 @@ func (sm *ScopeManager) ToFile(log_type string, file_content string) {
 		if _json, err := json.MarshalIndent(json.RawMessage(fmt.Sprintf("{%s}", file_content)), "", "    "); err != nil {
 			log.FailureLog("Failed to marshalindent json:%v\n%s", err, file_content)
 		} else {
-			file.WriteString(string(_json))
+
+			// make <>& safe
+			json_string := string(_json)
+			json_string = strings.ReplaceAll(json_string, "\\u003c", "<")
+			json_string = strings.ReplaceAll(json_string, "\\u003e", ">")
+			json_string = strings.ReplaceAll(json_string, "\\u0026", "&")
+
+			if _n_written, err := file.WriteString(json_string); err != nil {
+				log.FailureLog("Error occured while writing json, %d/%d successful: %v", _n_written, len(_json), err)
+			}
 		}
 
 		file.Close()
@@ -210,6 +244,8 @@ func (sm *ScopeManager) ToFile(log_type string, file_content string) {
 		log.FailureLog("Failed to create file for log: %s", log_type)
 	}
 }
+
+// replaces
 
 // creates file and returns it
 func CreateLog(log_type string) (*os.File, bool) {
