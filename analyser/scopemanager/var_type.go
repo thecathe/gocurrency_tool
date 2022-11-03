@@ -40,6 +40,7 @@ func (sm *ScopeManager) NewVarType(node ast.Node) VarType {
 	// Define (:=) assignment
 	case *ast.AssignStmt:
 		log.DebugLog("Analyser, NewVarType: *ast.AssignStmt\n")
+		var_type.Info["NodeTrace"] = fmt.Sprintf("%s>%s", var_type.Info["NodeTrace"], "*ast.AssignStmt")
 
 		switch node_type.Tok {
 
@@ -50,6 +51,7 @@ func (sm *ScopeManager) NewVarType(node ast.Node) VarType {
 
 			// same type as predefined var
 			case *ast.Ident:
+				var_type.Info["NodeTrace"] = fmt.Sprintf("%s>%s", var_type.Info["NodeTrace"], "*ast.Ident")
 				// find corresponding decl
 				if _decl_id, _scope_id, _, _ := (*sm).FindDeclID(rhs_expr.Name); _scope_id != "" {
 					var_type.Type = (*(*sm).Decls)[_decl_id].Type.Type
@@ -59,10 +61,12 @@ func (sm *ScopeManager) NewVarType(node ast.Node) VarType {
 
 			// int or string
 			case *ast.BasicLit:
+				var_type.Info["NodeTrace"] = fmt.Sprintf("%s>%s", var_type.Info["NodeTrace"], "*ast.BasicLit")
 				var_type.Type = TokKindToVarType(rhs_expr.Kind)
 
 			// Data received from channel
 			case *ast.UnaryExpr:
+				var_type.Info["NodeTrace"] = fmt.Sprintf("%s>%s", var_type.Info["NodeTrace"], "*ast.UnaryExpr")
 
 				switch rhs_expr.Op {
 
@@ -83,13 +87,16 @@ func (sm *ScopeManager) NewVarType(node ast.Node) VarType {
 
 			// Type from Function
 			case *ast.CallExpr:
+				var_type.Info["NodeTrace"] = fmt.Sprintf("%s>%s", var_type.Info["NodeTrace"], "*ast.CallExpr")
 				var_type = *(*sm).CallExprVarType(rhs_expr)
 
 			// some other func
 			case *ast.CompositeLit:
+				var_type.Info["NodeTrace"] = fmt.Sprintf("%s>%s", var_type.Info["NodeTrace"], "*ast.CompositeLit")
 				var_type = *var_type.CompositeLit(rhs_expr)
 			//
 			default:
+				var_type.Info["NodeTrace"] = fmt.Sprintf("%s>%s", var_type.Info["NodeTrace"], "*ast.Default")
 				var_type.Type = VAR_DATA_TYPE_OTHER
 			}
 		}
@@ -97,10 +104,12 @@ func (sm *ScopeManager) NewVarType(node ast.Node) VarType {
 	// Params
 	case *ast.Field:
 		log.DebugLog("Analyser, NewVarType: *ast.Field\n")
+		var_type.Info["NodeTrace"] = fmt.Sprintf("%s>%s", var_type.Info["NodeTrace"], "*ast.Field")
 
 	// Declaration
 	case *ast.ValueSpec:
 		log.DebugLog("Analyser, NewVarType: *ast.ValueSpec\n")
+		var_type.Info["NodeTrace"] = fmt.Sprintf("%s>%s", var_type.Info["NodeTrace"], "*ast.ValueSpec")
 
 		// look in type field
 		if node_type.Type != nil {
@@ -108,10 +117,12 @@ func (sm *ScopeManager) NewVarType(node ast.Node) VarType {
 
 			// Pointer
 			case *ast.Ident:
+				var_type.Info["NodeTrace"] = fmt.Sprintf("%s>%s", var_type.Info["NodeTrace"], "*ast.Ident")
 				var_type.Type = DataStringToVarType(value_type.Name)
 
 			// Channel
 			case *ast.ChanType:
+				var_type.Info["NodeTrace"] = fmt.Sprintf("%s>%s", var_type.Info["NodeTrace"], "*ast.ChanType")
 				log.DebugLog("Analyser, NewVarType: chan\n")
 				var_type.Type = VAR_DATA_TYPE_CHAN
 				var_type.Data = append(var_type.Data, VAR_DATA_TYPE_CHAN)
@@ -120,80 +131,60 @@ func (sm *ScopeManager) NewVarType(node ast.Node) VarType {
 
 				// chan of chan
 				case *ast.ChanType:
+					var_type.Info["NodeTrace"] = fmt.Sprintf("%s>%s", var_type.Info["NodeTrace"], "*ast.ChanType")
 					log.DebugLog("Analyser, NewVarType: chan chan\n")
 					var_type.Data = append(var_type.Data, VAR_DATA_TYPE_CHAN)
 
 					switch inner_chan_expr := rhs_expr.Value.(type) {
 					// int or string
 					case *ast.Ident:
+						var_type.Info["NodeTrace"] = fmt.Sprintf("%s>%s", var_type.Info["NodeTrace"], "*ast.Ident")
 						var_type.Data = append(var_type.Data, DataStringToVarType(inner_chan_expr.Name))
 
 					// int or string
 					case *ast.BasicLit:
+						var_type.Info["NodeTrace"] = fmt.Sprintf("%s>%s", var_type.Info["NodeTrace"], "*ast.BasicLit")
 						var_type.Data = append(var_type.Data, TokKindToVarType(inner_chan_expr.Kind))
 
 					// Type from Function
 					case *ast.CallExpr:
+						var_type.Info["NodeTrace"] = fmt.Sprintf("%s>%s", var_type.Info["NodeTrace"], "*ast.CallExpr")
 						var_type = *(*sm).CallExprVarType(inner_chan_expr)
 
 					// some other func
 					case *ast.CompositeLit:
+						var_type.Info["NodeTrace"] = fmt.Sprintf("%s>%s", var_type.Info["NodeTrace"], "*ast.CompositeLit")
 						var_type = *var_type.CompositeLit(inner_chan_expr)
 
 					}
 
 				// int or string
 				case *ast.BasicLit:
+					var_type.Info["NodeTrace"] = fmt.Sprintf("%s>%s", var_type.Info["NodeTrace"], "*ast.BasicLit")
 					var_type.Type = TokKindToVarType(rhs_expr.Kind)
 
 				// Type from Function
 				case *ast.CallExpr:
+					var_type.Info["NodeTrace"] = fmt.Sprintf("%s>%s", var_type.Info["NodeTrace"], "*ast.CallExpr")
 					var_type = *(*sm).CallExprVarType(rhs_expr)
 
 				// some other func
 				case *ast.CompositeLit:
+					var_type.Info["NodeTrace"] = fmt.Sprintf("%s>%s", var_type.Info["NodeTrace"], "*ast.CompositeLit")
 					var_type = *var_type.CompositeLit(rhs_expr)
 
 				// unnaccounted for
 				default:
+					var_type.Info["NodeTrace"] = fmt.Sprintf("%s>%s", var_type.Info["NodeTrace"], "*ast.Default")
 					var_type.Type = VAR_DATA_TYPE_OTHER
 				}
 			}
 		}
 
-		// get type from value if possible
-		if var_type.Type == "" && node_type.Values != nil {
-			log.DebugLog("Analyser, NewVarType: GetTypeValue\n")
-			for _, var_values := range node_type.Values {
-				switch var_value := var_values.(type) {
-				// Pointer
-				// TODO case *ast.StarExpr:
-				// int or string
-				case *ast.BasicLit:
-					// // get value
-					// var_type.Data = append(var_type.Data, var_value.Value)
-
-					// update var type
-					switch var_value.Kind {
-					// int
-					case token.INT:
-						var_type.Type = VAR_DATA_TYPE_INT
-					// string
-					case token.STRING:
-						var_type.Type = VAR_DATA_TYPE_STRING
-					// struct
-					case token.STRUCT:
-						var_type.Type = VAR_DATA_TYPE_STRUCT
-					// unnaccounted for
-					default:
-						var_type.Type = VAR_DATA_TYPE_OTHER
-					}
-				}
-			}
-		}
 	// unnaccounted for
 	default:
 		var_type.Type = VAR_DATA_TYPE_OTHER
+		var_type.Info["NodeTrace"] = fmt.Sprintf("%s>%s", var_type.Info["NodeTrace"], "*ast.Default")
 	}
 
 	log.DebugLog("Analyser, leaving NewVarType: %s\n", var_type.Type)
@@ -208,15 +199,12 @@ func (vt *VarType) CompositeLit(node *ast.CompositeLit) *VarType {
 	// Get them all
 	case *ast.SelectorExpr:
 
-		var sel_expr []string = ExtractExpr(node.Type)
 		// add to type
-		vt.Info["SelectorExpr"] = strings.Join(sel_expr, ";")
+		vt = vt.ExtractExpr(node.Type)
 		vt.Type = VAR_DATA_FUNC_RET
 
-		// context
-		vt.Info["Function"] = sel_expr[len(sel_expr)-1]
-
 	default:
+		vt.Info["NodeTrace"] = fmt.Sprintf("%s>%s", vt.Info["NodeTrace"], "*ast.Default")
 		vt.Type = VAR_DATA_TYPE_OTHER
 	}
 
@@ -225,7 +213,7 @@ func (vt *VarType) CompositeLit(node *ast.CompositeLit) *VarType {
 
 // Returns []string containing selectorexpor x, sel of compositelit in each element
 // ast.Expr should be of type *ast.SelectorExpr
-func ExtractExpr(current_sel_expr ast.Expr) []string {
+func (vt *VarType) ExtractExpr(current_sel_expr ast.Expr) *VarType {
 
 	var sel_expr []string = make([]string, 0)
 	var loop bool = true
@@ -242,11 +230,13 @@ func ExtractExpr(current_sel_expr ast.Expr) []string {
 
 			// Selector
 			case *ast.SelectorExpr:
+				vt.Info["NodeTrace"] = fmt.Sprintf("%s>%s", vt.Info["NodeTrace"], "*ast.SelectorExpr")
 				// make x selector
 				current_sel_expr = inner_sel_type
 
 			// Ident
 			case *ast.Ident:
+				vt.Info["NodeTrace"] = fmt.Sprintf("%s>%s", vt.Info["NodeTrace"], "*ast.Ident")
 				// add x to beginning
 				sel_expr = append([]string{inner_sel_type.Name}, sel_expr...)
 				// end loop
@@ -254,11 +244,16 @@ func ExtractExpr(current_sel_expr ast.Expr) []string {
 			}
 
 		default:
+			vt.Info["NodeTrace"] = fmt.Sprintf("%s>%s", vt.Info["NodeTrace"], "*ast.Default")
 			loop = false
 		}
 	}
 
-	return sel_expr
+	// context
+	vt.Info["SelectorExpr"] = strings.Join(sel_expr, ";")
+	vt.Info["Function"] = sel_expr[len(sel_expr)-1]
+
+	return vt
 }
 
 // retrieves vartype data, and determins vartype type
