@@ -12,6 +12,7 @@ const (
 	VAR_DATA_TYPE_NONE       GeneralVarType = "None"
 	VAR_DATA_TYPE_OTHER      GeneralVarType = "Other"
 	VAR_DATA_TYPE_INT        GeneralVarType = "Int"
+	VAR_DATA_TYPE_FLOAT      GeneralVarType = "Float"
 	VAR_DATA_TYPE_STRING     GeneralVarType = "String"
 	VAR_DATA_TYPE_BOOL       GeneralVarType = "Bool"
 	VAR_DATA_TYPE_STRUCT     GeneralVarType = "Struct"
@@ -32,6 +33,9 @@ func DataStringToVarType(_data_type string) GeneralVarType {
 	case "bool":
 		return VAR_DATA_TYPE_BOOL
 
+	case "float":
+		return VAR_DATA_TYPE_FLOAT
+
 	default:
 		return VAR_DATA_TYPE_OTHER
 	}
@@ -44,6 +48,9 @@ func TokKindToVarType(_tok_kind token.Token) GeneralVarType {
 
 	case token.STRING:
 		return VAR_DATA_TYPE_STRING
+
+	case token.FLOAT:
+		return VAR_DATA_TYPE_FLOAT
 
 	case token.STRUCT:
 		return VAR_DATA_TYPE_STRUCT

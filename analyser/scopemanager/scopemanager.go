@@ -69,7 +69,7 @@ func (sm *ScopeManager) ParseNode(node ast.Node) (*ScopeManager, ParseType) {
 					if _sm, ok := (*sm).Pop(); ok {
 						sm = _sm
 						// log on exit
-						(*sm).ToFile((*sm).LogAll(false))
+						(*sm).ToFile((*sm).LogAll(true))
 					} else {
 						// failed
 						log.FailureLog("Analyser; ParseNode, StackPop.\n")
@@ -167,6 +167,9 @@ func (sm *ScopeManager) ParseNode(node ast.Node) (*ScopeManager, ParseType) {
 						(*sm).NewVarDecl(spec, node_type.Tok)
 					}
 				}
+				// set to be elevated to scope
+				(*(*sm).ScopeMap)[outer_scope.ID] = outer_scope.SetElevate(true)
+
 				return sm, PARSE_DECL
 
 			default:
@@ -365,7 +368,7 @@ func (sm *ScopeManager) ParseNode(node ast.Node) (*ScopeManager, ParseType) {
 			case *ast.Ident:
 				var decl_id, _, _, _ = (*sm).FindDeclID(var_label_type.Name)
 				// update values
-				sm = (*sm).VarDeclAddValue(decl_id, var_label_type, node_type.Pos())
+				sm = (*sm).VarDeclAddValue(decl_id, node_type.Rhs[0], node_type.Pos())
 
 			}
 			return sm, PARSE_ASSIGN

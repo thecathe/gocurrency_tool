@@ -75,9 +75,18 @@ func (sm *ScopeManager) LogDecls(print_traces bool) (string, string) {
 
 // returns stringified decls
 func (sm *ScopeManager) StringifyDecls(print_traces bool) string {
+
+	// order decl ids
+	var unordered_decl_ids IDs = make(IDs, 0)
+	for _decl_id := range *(*sm).Decls {
+		unordered_decl_ids = append(unordered_decl_ids, _decl_id)
+	}
+
+	var ordered_decl_ids []ID = *(*sm).SortIDs("decl", unordered_decl_ids.MakeIDs())
+
 	var build_string string = ""
 
-	for _decl_id := range *(*sm).Decls {
+	for _, _decl_id := range ordered_decl_ids {
 		if _, ok := (*(*sm).Decls)[_decl_id]; ok {
 			build_string = fmt.Sprintf("%s%s,", build_string, (*sm).StringifyDecl(_decl_id, print_traces))
 		}
@@ -116,7 +125,7 @@ func (sm *ScopeManager) StringifyDecl(decl_id ID, print_traces bool) string {
 
 	// for every value
 	for _, _value := range (*(*sm).Decls)[decl_id].Values {
-		build_string = fmt.Sprintf("%s{\"scope_id\": \"%s\", \"value\": \"%s\", \"pos\": \"%d\"},", build_string, _value.ScopeID, _value.Value, _value.Pos)
+		build_string = fmt.Sprintf("%s{\"scope_id\": \"%s\", \"value\": \"%s\", \"trace\" : [\"%s\"], \"pos\": \"%d\"},", build_string, _value.ScopeID, _value.Value, strings.Join(_value.Trace, "\",\""), _value.Pos)
 	}
 	build_string = fmt.Sprintf("%s]}}", build_string[:len(build_string)-1])
 
@@ -149,7 +158,7 @@ func (sm *ScopeManager) StringifyScopes() string {
 	}
 
 	// log.GeneralLog("\n\n\n\nSortScopes:\n%02d | %s\n\n", len(*unordered_scope_ids.MakeString()), strings.Join([]string(*unordered_scope_ids.MakeString()), ", "))
-	var ordered_scope_ids []ID = *(*sm).SortScopes(unordered_scope_ids.MakeIDs())
+	var ordered_scope_ids []ID = *(*sm).SortIDs("scope", unordered_scope_ids.MakeIDs())
 
 	var build_string string = ""
 
@@ -178,7 +187,7 @@ func (sm *ScopeManager) StringifyScope(scope_id ID) string {
 
 		var_type := (*(*sm).Decls)[_decl_id].Type.Type
 
-		var_list = fmt.Sprintf("%s{ \"decl_id\" : \"%s\", \"type\" : \"%s\", \"values\" : [ ", var_list, _decl_id, var_type)
+		var_list = fmt.Sprintf("%s{ \"label\" : \"%s\", \"decl_id\" : \"%s\", \"type\" : \"%s\", \"values\" : [ ", var_list, (*(*sm).Decls)[_decl_id].Label, _decl_id, var_type)
 		if _index, _value := (*(*sm.Decls)[_decl_id]).FindValue(scope_id); _index >= 0 {
 			var_list = fmt.Sprintf("%s\"%s\"", var_list, _value.Value)
 		} else {
@@ -199,7 +208,7 @@ func (sm *ScopeManager) StringifyScope(scope_id ID) string {
 
 				var_type := (*(*sm).Decls)[_decl_id].Type.Type
 
-				var_list = fmt.Sprintf("%s{\"decl_id\" : \"%s\", \"elevated_id\":\"%s\", \"type\" : \"%s\", \"values\" : [ ", var_list, _decl_id, _elevated_id, var_type)
+				var_list = fmt.Sprintf("%s{ \"label\" : \"%s\", \"decl_id\" : \"%s\", \"elevated_id\":\"%s\", \"type\" : \"%s\", \"values\" : [ ", var_list, (*(*sm).Decls)[_decl_id].Label, _decl_id, _elevated_id, var_type)
 				if _index, _value := (*(*sm.Decls)[_decl_id]).FindValue(_elevated_id); _index >= 0 {
 					var_list = fmt.Sprintf("%s\"%s\"", var_list, _value.Value)
 				} else {

@@ -94,7 +94,8 @@ func (sm *ScopeManager) NewVarType(node ast.Node) VarType {
 
 				// unaccounted for
 				default:
-					log.DebugLog("NewVarType; *ast.Unary: unaccounted for token: %s", rhs_expr.Op.String())
+					var_type.Info["NodeTrace"] = fmt.Sprintf("%s > %s", var_type.Info["NodeTrace"], "Default")
+					log.DebugLog("NewVarType; *ast.Unary: unaccounted for token: %s, should recover in VarValue", rhs_expr.Op.String())
 				}
 
 			// Type from Function
@@ -108,7 +109,7 @@ func (sm *ScopeManager) NewVarType(node ast.Node) VarType {
 				var_type = *var_type.CompositeLit(rhs_expr)
 			//
 			default:
-				var_type.Info["NodeTrace"] = fmt.Sprintf("%s > %s", var_type.Info["NodeTrace"], "*ast.Default")
+				var_type.Info["NodeTrace"] = fmt.Sprintf("%s > %s", var_type.Info["NodeTrace"], "Default")
 				var_type.Type = VAR_DATA_TYPE_OTHER
 			}
 		}
@@ -140,7 +141,7 @@ func (sm *ScopeManager) NewVarType(node ast.Node) VarType {
 
 			//
 			default:
-				var_type.Info["NodeTrace"] = fmt.Sprintf("%s > %s", var_type.Info["NodeTrace"], "*ast.Default")
+				var_type.Info["NodeTrace"] = fmt.Sprintf("%s > %s", var_type.Info["NodeTrace"], "Default")
 				var_type.Type = VAR_DATA_TYPE_OTHER
 			}
 		}
@@ -148,7 +149,7 @@ func (sm *ScopeManager) NewVarType(node ast.Node) VarType {
 	// unnaccounted for
 	default:
 		var_type.Type = VAR_DATA_TYPE_OTHER
-		var_type.Info["NodeTrace"] = fmt.Sprintf("%s > %s", var_type.Info["NodeTrace"], "*ast.Default")
+		var_type.Info["NodeTrace"] = fmt.Sprintf("%s > %s", var_type.Info["NodeTrace"], "Default")
 	}
 
 	log.DebugLog("leaving NewVarType: %s\n", var_type.Type)
@@ -169,7 +170,7 @@ func (vt *VarType) CompositeLit(node *ast.CompositeLit) *VarType {
 		vt.Type = VAR_DATA_FUNC_RET
 
 	default:
-		vt.Info["NodeTrace"] = fmt.Sprintf("%s > %s", vt.Info["NodeTrace"], "*ast.Default")
+		vt.Info["NodeTrace"] = fmt.Sprintf("%s > %s", vt.Info["NodeTrace"], "Default")
 		vt.Type = VAR_DATA_TYPE_OTHER
 	}
 
@@ -204,7 +205,7 @@ func (vt *VarType) ExtractExpr(current_sel_expr ast.Expr) *VarType {
 			return vt
 
 		default:
-			vt.Info["NodeTrace"] = fmt.Sprintf("%s > %s", vt.Info["NodeTrace"], "*ast.Default")
+			vt.Info["NodeTrace"] = fmt.Sprintf("%s > %s", vt.Info["NodeTrace"], "Default")
 			vt.Info["Function"] = string(VAR_DATA_TYPE_OTHER)
 			// add x to beginning
 			vt.Info["SelectorExpr"] = fmt.Sprintf("%s;%s", vt.Info["SelectorExpr"], VAR_DATA_TYPE_OTHER)
@@ -213,7 +214,7 @@ func (vt *VarType) ExtractExpr(current_sel_expr ast.Expr) *VarType {
 
 	default:
 		log.FailureLog("ExtractExpr; called on non-*ast.SelectorExpr: %v", outer_sel_type)
-		vt.Info["NodeTrace"] = fmt.Sprintf("%s > %s", vt.Info["NodeTrace"], "*ast.Default")
+		vt.Info["NodeTrace"] = fmt.Sprintf("%s > %s", vt.Info["NodeTrace"], "Default")
 		vt.Info["Function"] = string(VAR_DATA_TYPE_OTHER)
 		// add x to beginning
 		vt.Info["SelectorExpr"] = fmt.Sprintf("%s;%s", vt.Info["SelectorExpr"], VAR_DATA_TYPE_NONE)
@@ -274,7 +275,7 @@ func (sm *ScopeManager) ChanTypeVarType(var_type *VarType, node *ast.ChanType) *
 
 	// unnaccounted for
 	default:
-		var_type.Info["NodeTrace"] = fmt.Sprintf("%s > %s", var_type.Info["NodeTrace"], "*ast.Default")
+		var_type.Info["NodeTrace"] = fmt.Sprintf("%s > %s", var_type.Info["NodeTrace"], "Default")
 		var_type.Type = VAR_DATA_TYPE_OTHER
 		return var_type
 	}
@@ -344,7 +345,7 @@ func (sm *ScopeManager) CallExprVarType(var_type *VarType, node *ast.CallExpr) *
 					}
 
 				default:
-					var_type.Info["CallTrace"] = fmt.Sprintf("%s > %s", var_type.Info["CallTrace"], "*ast.Default")
+					var_type.Info["CallTrace"] = fmt.Sprintf("%s > %s", var_type.Info["CallTrace"], "Default")
 					var_type.Info["BufferSize"] = fmt.Sprintf("unknown: [%v]", _buffer_expr)
 					return var_type
 				}
@@ -376,13 +377,13 @@ func (sm *ScopeManager) CallExprVarType(var_type *VarType, node *ast.CallExpr) *
 			}
 
 		default:
-			var_type.Info["CallTrace"] = fmt.Sprintf("%s > %s", var_type.Info["CallTrace"], "*ast.Default")
+			var_type.Info["CallTrace"] = fmt.Sprintf("%s > %s", var_type.Info["CallTrace"], "Default")
 			var_type.Type = VAR_DATA_TYPE_OTHER
 			return var_type
 		}
 
 	default:
-		var_type.Info["CallTrace"] = fmt.Sprintf("%s > %s", var_type.Info["CallTrace"], "*ast.Default")
+		var_type.Info["CallTrace"] = fmt.Sprintf("%s > %s", var_type.Info["CallTrace"], "Default")
 		var_type.Type = VAR_DATA_TYPE_OTHER
 		return var_type
 	}
