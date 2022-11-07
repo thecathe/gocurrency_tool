@@ -8,6 +8,7 @@ const (
 	// general
 	PARSE_NONE       ParseType = "None"
 	PARSE_SCOPE_EXIT ParseType = "Scope_Exit"
+	PARSE_SKIPPED    ParseType = "Skipped"
 
 	// scopes
 	PARSE_PACKAGE          ParseType = "Package"

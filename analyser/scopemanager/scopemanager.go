@@ -15,6 +15,11 @@ type ScopeManager struct {
 	FileSet  *token.FileSet
 	FileSrc  string
 	Decls    *MapOfDecls
+	SpecialCase
+	SkipUntil struct { // for skipping things already captured by more specialist sections (for loops)
+		Active bool
+		Pos    token.Pos
+	}
 }
 
 func NewScopeManager(filename string, fileset *token.FileSet) (*ScopeManager, error) {
@@ -23,6 +28,8 @@ func NewScopeManager(filename string, fileset *token.FileSet) (*ScopeManager, er
 	sm.ScopeMap = NewMapOfScopes()
 	sm.Stack = NewStackOfIDs()
 	sm.FileSet = fileset
+
+	sm.SkipUntil.Active = false
 
 	if file_src, err := os.ReadFile(filename); err == nil {
 		sm.FileSrc = string(file_src)
@@ -44,6 +51,13 @@ func (sm *ScopeManager) CheckAwaitedFunction(node *ast.Node) (*ScopeManager, boo
 }
 
 func (sm *ScopeManager) ParseNode(node ast.Node) (*ScopeManager, ParseType) {
+
+	// check if node should be skipped
+	if (*sm).SkipUntil.Active {
+		if (*sm).SkipUntil.Pos > node.Pos() {
+			return sm, PARSE_SKIPPED
+		}
+	}
 
 	// if not first scope
 	if _size := (*sm).Stack.Size(); _size > 0 {
