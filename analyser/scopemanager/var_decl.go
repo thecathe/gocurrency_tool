@@ -23,7 +23,6 @@ func (sm *ScopeManager) NewVarDecl(node ast.Node, tok token.Token) (*ScopeManage
 	switch node_type := (node).(type) {
 	// var decl
 	case *ast.ValueSpec:
-
 		// for each var being decl
 		for _, name := range node_type.Names {
 			// declaration
@@ -82,7 +81,6 @@ func (sm *ScopeManager) NewVarDecl(node ast.Node, tok token.Token) (*ScopeManage
 			}
 
 		}
-		return sm, true
 
 	// variable assignment
 	case *ast.AssignStmt:
@@ -150,12 +148,20 @@ func (sm *ScopeManager) NewVarDecl(node ast.Node, tok token.Token) (*ScopeManage
 		default:
 			log.WarningLog("NewVarDecl, assignstmt: default")
 		}
-		return sm, true
 
 	// unnaccounted for
 	default:
 		return sm, false
 	}
+
+	// if var decl or assign, make sure to elevate id
+	if outer_scope, ok := (*sm).Peek(); ok {
+		if outer_scope.Type == SCOPE_TYPE_DECL {
+			(*(*sm).ScopeMap)[outer_scope.ID] = (*(*sm).ScopeMap)[outer_scope.ID].SetElevate(true)
+		}
+	}
+
+	return sm, true
 }
 
 func (decl *VarDecl) AddValue(value VarValue) *VarDecl {

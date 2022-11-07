@@ -949,10 +949,10 @@
    948  .  .  .  .  }
    949  .  .  .  .  Scope: *ast.Scope {
    950  .  .  .  .  .  Objects: map[string]*ast.Object (len = 4) {
-   951  .  .  .  .  .  .  "add_bound": *(obj @ 45)
-   952  .  .  .  .  .  .  "decl_wg": *(obj @ 74)
-   953  .  .  .  .  .  .  "decl_mu": *(obj @ 101)
-   954  .  .  .  .  .  .  "run": *(obj @ 130)
+   951  .  .  .  .  .  .  "decl_mu": *(obj @ 101)
+   952  .  .  .  .  .  .  "run": *(obj @ 130)
+   953  .  .  .  .  .  .  "add_bound": *(obj @ 45)
+   954  .  .  .  .  .  .  "decl_wg": *(obj @ 74)
    955  .  .  .  .  .  }
    956  .  .  .  .  }
    957  .  .  .  .  Imports: []*ast.ImportSpec (len = 2) {
@@ -3851,12 +3851,12 @@
   3850  .  .  .  .  }
   3851  .  .  .  .  Scope: *ast.Scope {
   3852  .  .  .  .  .  Objects: map[string]*ast.Object (len = 6) {
-  3853  .  .  .  .  .  .  "async_job_maker_count": *(obj @ 1024)
-  3854  .  .  .  .  .  .  "test_int": *(obj @ 1057)
-  3855  .  .  .  .  .  .  "test_string": *(obj @ 1090)
-  3856  .  .  .  .  .  .  "AsyncCommunication": *(obj @ 1117)
-  3857  .  .  .  .  .  .  "AsyncWorker": *(obj @ 1736)
-  3858  .  .  .  .  .  .  "AsyncJobMaker": *(obj @ 2272)
+  3853  .  .  .  .  .  .  "test_int": *(obj @ 1057)
+  3854  .  .  .  .  .  .  "test_string": *(obj @ 1090)
+  3855  .  .  .  .  .  .  "AsyncCommunication": *(obj @ 1117)
+  3856  .  .  .  .  .  .  "AsyncWorker": *(obj @ 1736)
+  3857  .  .  .  .  .  .  "AsyncJobMaker": *(obj @ 2272)
+  3858  .  .  .  .  .  .  "async_job_maker_count": *(obj @ 1024)
   3859  .  .  .  .  .  }
   3860  .  .  .  .  }
   3861  .  .  .  .  Imports: []*ast.ImportSpec (len = 3) {
@@ -6709,10 +6709,10 @@
   6708  .  .  .  .  }
   6709  .  .  .  .  Scope: *ast.Scope {
   6710  .  .  .  .  .  Objects: map[string]*ast.Object (len = 4) {
-  6711  .  .  .  .  .  .  "SyncJobMaker": *(obj @ 4969)
-  6712  .  .  .  .  .  .  "sync_job_maker_count": *(obj @ 4123)
-  6713  .  .  .  .  .  .  "SyncCommunication": *(obj @ 4150)
-  6714  .  .  .  .  .  .  "SyncWorker": *(obj @ 4573)
+  6711  .  .  .  .  .  .  "sync_job_maker_count": *(obj @ 4123)
+  6712  .  .  .  .  .  .  "SyncCommunication": *(obj @ 4150)
+  6713  .  .  .  .  .  .  "SyncWorker": *(obj @ 4573)
+  6714  .  .  .  .  .  .  "SyncJobMaker": *(obj @ 4969)
   6715  .  .  .  .  .  }
   6716  .  .  .  .  }
   6717  .  .  .  .  Imports: []*ast.ImportSpec (len = 3) {

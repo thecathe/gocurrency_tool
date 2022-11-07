@@ -11,8 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"golang.org/x/tools/go/packages"
 	"github.com/thecathe/gocurrency_tool/analyser/log"
+	"golang.org/x/tools/go/packages"
 )
 
 // parse a particular dir
@@ -56,7 +56,7 @@ func ParseDir(proj_name string, path_to_dir string, path_to_main_dir string) Pac
 		// ast.Print(fileSet, f)
 
 		// write to file
-		file, err := os.Create(fmt.Sprintf("_test_ast\\%s.txt", filepath.Base(path_to_dir)))
+		file, err := os.Create(fmt.Sprintf("_test_ast\\%s.yml", filepath.Base(path_to_dir)))
 		if err == nil {
 			var f_writer bytes.Buffer
 			ast.Fprint(&f_writer, fileSet, f, ast.NotNilFilter)
