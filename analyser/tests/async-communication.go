@@ -17,9 +17,9 @@ func AsyncCommunication() {
 	fmt.Printf("\n\n\nAsync Tests:\n\n")
 
 	reassign_me := -1
-	reassign_me = 1 * (0+-1)
+	reassign_me = 2 * (0-1)
 
-	reassign_me = 1 * (4+-1)
+	reassign_me = 2 * (4+-1)
 	reassign_me = 2 + -reassign_me
 
 	var worker_contact chan chan int = make(chan chan int, async_job_maker_count)

@@ -82,7 +82,7 @@ func (sm *ScopeManager) NewVarValue(expr ast.Expr, pos token.Pos) (VarValue, Var
 			_var_type = *_temp_type
 
 			// add op to beginning
-			value.Value = fmt.Sprintf("%s%s", inner_expr.Op.String(), value.Value)
+			// value.Value = fmt.Sprintf("%s%s", inner_expr.Op.String(), value.Value)
 
 		//
 		default:
@@ -127,21 +127,25 @@ func (sm *ScopeManager) UnaryExprVarValue(_node *ast.UnaryExpr, _value *VarValue
 	switch inner_type := _node.X.(type) {
 
 	case *ast.Ident:
-		_value.Trace = append(_value.Trace, "*ast.Ident")
 		_type.Info["ValueTrace"] = fmt.Sprintf("%s > %s", _type.Info["ValueTrace"], "*ast.Ident")
 		_temp_value, _temp_var_type := (*sm).IdentVarValue(inner_type, _value, _type)
 		_value = _temp_value
 		_type = _temp_var_type
 
+		_value.Trace = append(_value.Trace, fmt.Sprintf("*ast.Ident (%s: %s)", _value.Value, _type.Type))
+
 	case *ast.BasicLit:
-		_value.Trace = append(_value.Trace, "*ast.BasicLit")
 		_type.Info["ValueTrace"] = fmt.Sprintf("%s > %s", _type.Info["ValueTrace"], "*ast.BasicLit")
 		_value.Value = inner_type.Value
 		_type.Type = TokKindToVarType(inner_type.Kind)
 
+		// add op back
+		_value.Value = fmt.Sprintf("%s%s", _node.Op.String(), _value.Value)
+
+		_value.Trace = append(_value.Trace, fmt.Sprintf("*ast.BasicLit (%s: %s)", _value.Value, _type.Type))
+
 	// Type from Function
 	case *ast.CallExpr:
-		_value.Trace = append(_value.Trace, "*ast.CallExpr")
 		_type.Info["ValueTrace"] = fmt.Sprintf("%s > %s", _type.Info["ValueTrace"], "*ast.CallExpr")
 		_type = (*sm).CallExprVarType(_type, inner_type)
 		// patch var value
@@ -149,9 +153,13 @@ func (sm *ScopeManager) UnaryExprVarValue(_node *ast.UnaryExpr, _value *VarValue
 			_value.Value = string(_type.Data.Get(len(_type.Data) - 1))
 		}
 
+		// add op back
+		_value.Value = fmt.Sprintf("%s%s", _node.Op.String(), _value.Value)
+
+		_value.Trace = append(_value.Trace, fmt.Sprintf("*ast.CallExpr (%s: %s)", _value.Value, _type.Type))
+
 	//
 	case *ast.BinaryExpr:
-		_value.Trace = append(_value.Trace, "*ast.BinaryExpr")
 		_type.Info["ValueTrace"] = fmt.Sprintf("%s > %s", _type.Info["ValueTrace"], "*ast.BinaryExpr")
 		_temp_value, _temp_type, _result_expr := (*sm).BinaryExprVarValue(inner_type, _value, _type)
 		_value = _temp_value
@@ -164,16 +172,32 @@ func (sm *ScopeManager) UnaryExprVarValue(_node *ast.UnaryExpr, _value *VarValue
 			_value.Value = _temp_value
 			log.FailureLog("BinaryExprVarValue, Evaluation failed yielding: \"%s\"", _temp_value)
 		}
+
+		// add op back
+		_value.Value = fmt.Sprintf("%s%s", _node.Op.String(), _value.Value)
+
+		_value.Trace = append(_value.Trace, fmt.Sprintf("*ast.BinaryExpr (%s: %s)", _value.Value, _type.Type))
 	}
 	return _value, _type
+}
+
+func (expr *BinaryVarValue) Evaluate() (bool, string, GeneralVarType) {
+	if _ok, _result, _gvt := expr.DevEvaluate(); _ok {
+		log.DebugLog("[%s(%s) %s %s(%s)] = %s", expr.Lhs.Type, expr.Lhs.Value, expr.Op.String(), expr.Rhs.Type, expr.Rhs.Value, _result)
+
+		return _ok, _result, _gvt
+
+	} else {
+		return _ok, _result, _gvt
+	}
 }
 
 // evaluates a binary expression
 // bool true means string has a value
 // bool false means string only contains working out, eg: "int(5) + string(three)"
-func (expr *BinaryVarValue) Evaluate() (bool, string, GeneralVarType) {
+func (expr *BinaryVarValue) DevEvaluate() (bool, string, GeneralVarType) {
 
-	log.DebugLog("[%s(%s) %s %s(%s)]", expr.Lhs.Type, expr.Lhs.Value, expr.Op.String(), expr.Rhs.Type, expr.Rhs.Value)
+	// log.DebugLog("[%s(%s) %s %s(%s)]", expr.Lhs.Type, expr.Lhs.Value, expr.Op.String(), expr.Rhs.Type, expr.Rhs.Value)
 
 	var result string
 
@@ -261,7 +285,7 @@ func (expr *BinaryVarValue) Evaluate() (bool, string, GeneralVarType) {
 						switch expr.Op {
 						//
 						case token.ADD:
-							return true, fmt.Sprintf("%b", _i_lhs+_i_rhs), expr.Lhs.Type
+							return true, fmt.Sprintf("%d", _i_lhs+_i_rhs), expr.Lhs.Type
 
 						//
 						case token.SUB:
@@ -346,6 +370,8 @@ func (sm *ScopeManager) BinaryExprVarValue(_node *ast.BinaryExpr, _value *VarVal
 		// continue expanding
 		case *ast.ParenExpr:
 			_value.Trace = append(_value.Trace, fmt.Sprintf("%d : *ast.ParenExpr", _index))
+
+			// switch for paren
 			switch _branch_p := _branch.X.(type) {
 
 			case *ast.BinaryExpr:
@@ -361,7 +387,7 @@ func (sm *ScopeManager) BinaryExprVarValue(_node *ast.BinaryExpr, _value *VarVal
 			}
 		// split x y
 		case *ast.BinaryExpr:
-			_value.Trace = append(_value.Trace, fmt.Sprintf("%d : *ast.BinaryExpr", _index))
+			// _value.Trace = append(_value.Trace, fmt.Sprintf("%d : *ast.BinaryExpr", _index))
 
 			_temp_value, _temp_type, _temp_binary_expr := (*sm).BinaryExprVarValue(_branch, _value, _type)
 
@@ -371,34 +397,37 @@ func (sm *ScopeManager) BinaryExprVarValue(_node *ast.BinaryExpr, _value *VarVal
 			if ok, _evaluated_binary_expr, _resulting_type := _temp_binary_expr.Evaluate(); ok {
 				_temp_op_var.Value = _evaluated_binary_expr
 				_temp_op_var.Type = _resulting_type
+
+				_value.Trace = append(_value.Trace, fmt.Sprintf("%d : *ast.BinaryExpr | %s", _index, _evaluated_binary_expr))
 			} else {
 				_temp_op_var.Value = _evaluated_binary_expr
 				_temp_op_var.Type = _resulting_type
+				_value.Trace = append(_value.Trace, fmt.Sprintf("%d : *ast.BinaryExpr | %s", _index, _evaluated_binary_expr))
 				log.FailureLog("BinaryExprVarValue, Evaluation failed yielding: \"%s\"", _evaluated_binary_expr)
 			}
 
 		//
 		case *ast.UnaryExpr:
-			_value.Trace = append(_value.Trace, fmt.Sprintf("%d : *ast.UnaryExpr", _index))
 			_temp_value, _temp_type := (*sm).UnaryExprVarValue(_branch, _value, _type)
-
-			_temp_op_var.Value = fmt.Sprintf("%s%s", _branch.Op.String(), _temp_value.Value)
-			_temp_op_var.Type = _temp_type.Type
-
-		// basic lit
-		case *ast.Ident:
-			_value.Trace = append(_value.Trace, fmt.Sprintf("%d : *ast.Ident", _index))
-			_temp_value, _temp_type := (*sm).IdentVarValue(_branch, _value, _type)
-
 			_temp_op_var.Value = _temp_value.Value
 			_temp_op_var.Type = _temp_type.Type
 
+			_value.Trace = append(_value.Trace, fmt.Sprintf("%d : *ast.UnaryExpr (%s: %s)", _index, _temp_op_var.Type, _temp_op_var.Value))
+
+		// basic lit
+		case *ast.Ident:
+			_temp_value, _temp_type := (*sm).IdentVarValue(_branch, _value, _type)
+			_temp_op_var.Value = _temp_value.Value
+			_temp_op_var.Type = _temp_type.Type
+
+			_value.Trace = append(_value.Trace, fmt.Sprintf("%d : *ast.Ident (%s: %s)", _index, _temp_op_var.Type, _temp_op_var.Value))
+
 		// get from defined var
 		case *ast.BasicLit:
-			_value.Trace = append(_value.Trace, fmt.Sprintf("%d : *ast.BasicLit", _index))
-
 			_temp_op_var.Value = _branch.Value
 			_temp_op_var.Type = TokKindToVarType(_branch.Kind)
+
+			_value.Trace = append(_value.Trace, fmt.Sprintf("%d : *ast.BasicLit (%s: %s)", _index, _temp_op_var.Type, _temp_op_var.Value))
 
 		default:
 			_value.Trace = append(_value.Trace, fmt.Sprintf("%d : Default", _index))
