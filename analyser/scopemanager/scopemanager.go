@@ -46,7 +46,7 @@ func NewScopeManager(filename string, fileset *token.FileSet) (*ScopeManager, er
 	return &sm, nil
 }
 
-func (sm *ScopeManager) CheckAwaitedFunction(node *ast.Node) (*ScopeManager, bool) {
+func (sm *ScopeManager) CheckAwaitedFunction(node ast.Node) (*ScopeManager, bool) {
 
 	// x:=(*node).(*ast.Ident).
 
@@ -261,6 +261,8 @@ func (sm *ScopeManager) ParseNode(node ast.Node) (*ScopeManager, ParseType) {
 	case *ast.ForStmt:
 		log.DebugLog("Analyser; ParseNode, ForStmt\n")
 		sm = (*sm).NewScope(node, SCOPE_TYPE_FOR)
+		// skip rest of for loop init
+		sm = (*sm).SetSkipUntil(node)
 		return sm, PARSE_FOR_STMT
 
 	// Scope: Ranged For Loop Statement
@@ -400,6 +402,47 @@ func (sm *ScopeManager) ParseNode(node ast.Node) (*ScopeManager, ParseType) {
 		log.VerboseLog("Analyser; ParseNode, Default: Nonthing of interest\n")
 		return sm, PARSE_NONE
 	}
+}
+
+// given a node, sets skip until the end of that nodes scope
+func (sm *ScopeManager) SetSkipUntil(node ast.Node) *ScopeManager {
+
+	if node.End().IsValid() {
+		// set skip
+		(*sm).SkipUntil.Active = true
+
+		switch _skip := node.(type) {
+
+		// for loop, continue in body, which is after post cond
+		case *ast.ForStmt:
+			if _skip.Post.End().IsValid() {
+				(*sm).SkipUntil.Pos = _skip.Post.End()
+			} else {
+				if peek_id, ok := (*sm).PeekID(); ok {
+					log.FailureLog("SetSkipUntil ForLoop, %s; end not valid: %v - %v", peek_id, node.Pos(), node.End())
+				} else {
+					log.FailureLog("SetSkipUntil ForLoop, PEEK FAILED; end not valid: %v - %v", node.Pos(), node.End())
+				}
+			}
+		// unknown
+		default:
+			(*sm).SkipUntil.Active = false
+			if peek_id, ok := (*sm).PeekID(); ok {
+				log.FailureLog("SetSkipUntil, %s; not defined as skippable: %v - %v", peek_id, node.Pos(), node.End())
+			} else {
+				log.FailureLog("SetSkipUntil, PEEK FAILED; not defined as skippable: %v - %v", node.Pos(), node.End())
+			}
+		}
+
+	} else {
+		if peek_id, ok := (*sm).PeekID(); ok {
+			log.FailureLog("SetSkipUntil, %s; end not valid: %v - %v", peek_id, node.Pos(), node.End())
+		} else {
+			log.FailureLog("SetSkipUntil, PEEK FAILED; end not valid: %v - %v", node.Pos(), node.End())
+		}
+	}
+
+	return sm
 }
 
 // Returns the decl and scope IDs of first Scope containing a VarDecl of the Label provided.
