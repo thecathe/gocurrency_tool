@@ -10,12 +10,15 @@ import (
 
 // ScopeManager
 type ScopeManager struct {
-	ScopeMap *MapOfScopes
-	Stack    *StackOfIDs
-	FileSet  *token.FileSet
-	FileSrc  string
-	Decls    *MapOfDecls
-	SpecialCase
+	ScopeMap     *MapOfScopes
+	Stack        *StackOfIDs
+	FileSet      *token.FileSet
+	FileSrc      string
+	Decls        *MapOfDecls
+	SpecialCases struct {
+		ForLoop    *ForLoop
+		SelectRecv *SelectRecv
+	}
 	SkipUntil struct { // for skipping things already captured by more specialist sections (for loops)
 		Active bool
 		Pos    token.Pos
